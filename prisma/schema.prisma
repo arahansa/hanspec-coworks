@@ -1,0 +1,39 @@
+// coworks Prisma schema
+// 로컬 PostgreSQL(localhost:5433) 기반. 차후 Supabase 이전 전제로 DATABASE_URL 환경변수 사용.
+// 참고: ../CLAUDE.md (HanSpec 워크스페이스 구조)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Prisma 7: 연결 URL은 prisma.config.ts(CLI)와 PrismaClient 어댑터(런타임)에서 관리한다.
+}
+
+/// 스컬폴딩 단계의 연결 검증용 최소 모델.
+/// 실제 MFR 도메인 모델은 다음 단계에서 추가한다.
+model HealthCheck {
+  id        String   @id @default(cuid())
+  note      String   @default("ok")
+  createdAt DateTime @default(now())
+}
+
+/// 멤버 등급. 가입 시 GENERAL로 고정, SUPER는 별도 승격.
+/// 참조: docs/domain/02-member.md
+enum MemberGrade {
+  SUPER
+  GENERAL
+}
+
+/// 프로젝트에 참여하는 멤버.
+/// 참조: docs/domain/02-member.md
+model Member {
+  id        Int         @id @default(autoincrement())
+  username  String      @unique @db.VarChar(20)
+  password  String // bcrypt 해시 저장
+  grade     MemberGrade @default(GENERAL)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
