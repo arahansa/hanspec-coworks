@@ -32,10 +32,7 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-zinc-50 dark:bg-black">
-        <SiteHeader
-          username={member?.username ?? null}
-          isSuper={member?.grade === "SUPER"}
-        />
+        <SiteHeader username={member?.username ?? null} />
         <div className="flex flex-1 flex-col">{children}</div>
       </body>
     </html>
