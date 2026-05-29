@@ -26,11 +26,21 @@ export default async function ProjectNodeModePage({
   });
   if (!project) notFound();
 
-  // 1단계: 최상위 MODULE 노드만 조회한다.
+  // MODULE 노드와 그 하위 FEATURE를 함께 조회해 트리로 구성한다.
   const modules = await prisma.node.findMany({
     where: { projectId, level: "MODULE", parentId: null },
     orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, description: true, version: true },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      version: true,
+      children: {
+        where: { level: "FEATURE" },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, name: true, description: true, version: true },
+      },
+    },
   });
 
   return (
