@@ -1,8 +1,9 @@
-// 참조: docs/components/02-navigation-left.md (v1.1) — 프로젝트 내 작업: NodeMode
-// 선택된 프로젝트의 NodeMode 작업 화면. 노드 도메인(docs/domain/04-node.md) 본구현은 추후.
+// 참조: docs/components/02-navigation-left.md (v1.1), docs/domain/04-node.md (v1.1)
+// 선택된 프로젝트의 NodeMode 작업 화면. 1단계: MODULE 노드 편집기.
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMember } from "@/lib/auth";
+import { NodeEditor } from "./NodeEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -25,18 +26,23 @@ export default async function ProjectNodeModePage({
   });
   if (!project) notFound();
 
+  // 1단계: 최상위 MODULE 노드만 조회한다.
+  const modules = await prisma.node.findMany({
+    where: { projectId, level: "MODULE", parentId: null },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true, description: true, version: true },
+  });
+
   return (
     <div className="p-8">
       <p className="font-mono text-xs uppercase tracking-widest text-zinc-400 dark:text-zinc-600">
         {project.name} · NodeMode
       </p>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight text-black dark:text-zinc-50">
+      <h1 className="mt-2 mb-8 text-2xl font-semibold tracking-tight text-black dark:text-zinc-50">
         NodeMode
       </h1>
 
-      <div className="mt-8 rounded-xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-400 dark:border-zinc-700 dark:text-zinc-500">
-        노드 작업 영역 (준비 중)
-      </div>
+      <NodeEditor projectId={projectId} modules={modules} />
     </div>
   );
 }

@@ -47,4 +47,31 @@ model Project {
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  nodes       Node[]
+}
+
+/// 노드 레벨. 1단계 편집기는 MODULE만 다룬다.
+/// 참조: docs/domain/04-node.md
+enum NodeLevel {
+  MODULE
+  FEATURE
+  REQUIREMENT
+}
+
+/// 프로젝트의 작업 단위. parent_id self-reference 트리 구조.
+/// 참조: docs/domain/04-node.md
+model Node {
+  id          Int       @id @default(autoincrement())
+  name        String    @db.VarChar(255)
+  level       NodeLevel
+  description String?    @db.Text
+  parentId    Int? // self-ref. 최상위(MODULE)는 null
+  projectId   Int
+  version     Int       @default(1)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  parent   Node?   @relation("NodeChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children Node[]  @relation("NodeChildren")
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
