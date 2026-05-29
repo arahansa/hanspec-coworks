@@ -1,4 +1,4 @@
-// 참조: docs/components/02-navigation-left.md (v1.0) — 일반 경로 좌측 네비게이션
+// 참조: docs/components/02-navigation-left.md (v1.1) — 일반 경로 좌측 네비게이션
 "use client";
 
 import Link from "next/link";
@@ -13,6 +13,12 @@ type Props = {
 
 // 좌측 네비를 숨길 경로 접두사. admin은 자체 사이드바, auth는 카드 화면.
 const HIDDEN_PREFIXES = ["/admin", "/signin", "/signup", "/me"];
+
+// 프로젝트 선택 시 좌측에 표시되는 프로젝트 내 작업 메뉴.
+// 참조: docs/components/02-navigation-left.md (v1.1)
+const PROJECT_TASK_ITEMS = [
+  { segment: "/node-mode", label: "NodeMode" },
+] as const;
 
 function selectedProjectId(pathname: string): number | null {
   const match = pathname.match(/^\/project\/(\d+)/);
@@ -44,18 +50,47 @@ export function LeftNav({ projects }: Props) {
           {projects.map((p) => {
             const active = selectedId === p.id;
             return (
-              <Link
-                key={p.id}
-                href={`/project/${p.id}`}
-                aria-current={active ? "page" : undefined}
-                className={`truncate rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  active
-                    ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
-                    : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
-                }`}
-              >
-                {p.name}
-              </Link>
+              <div key={p.id} className="flex flex-col gap-1">
+                <Link
+                  href={`/project/${p.id}`}
+                  aria-current={
+                    active && pathname === `/project/${p.id}`
+                      ? "page"
+                      : undefined
+                  }
+                  className={`truncate rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                    active
+                      ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
+                      : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
+                  }`}
+                >
+                  {p.name}
+                </Link>
+
+                {/* 선택된 프로젝트일 때만 작업 메뉴를 펼친다. */}
+                {active && (
+                  <div className="ml-3 flex flex-col gap-1 border-l border-zinc-200 pl-2 dark:border-zinc-800">
+                    {PROJECT_TASK_ITEMS.map((task) => {
+                      const href = `/project/${p.id}${task.segment}`;
+                      const taskActive = pathname === href;
+                      return (
+                        <Link
+                          key={task.segment}
+                          href={href}
+                          aria-current={taskActive ? "page" : undefined}
+                          className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
+                            taskActive
+                              ? "bg-zinc-100 font-medium text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
+                              : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
+                          }`}
+                        >
+                          {task.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
         </nav>
