@@ -96,6 +96,46 @@ export async function createFeature(
   return { ok: true, nodeId: node.id };
 }
 
+/**
+ * REQUIREMENT 노드 생성. 부모는 FEATURE이어야 한다.
+ * REQUIREMENT는 자식 노드를 만들 수 없다(TASK는 추후).
+ * 참조: docs/domain/04-node.md
+ */
+export async function createRequirement(
+  parentFeatureId: number,
+  name: string,
+  description: string,
+): Promise<NodeActionResult> {
+  const parent = await prisma.node.findUnique({
+    where: { id: parentFeatureId },
+    select: { id: true, level: true, projectId: true },
+  });
+  if (!parent) return { ok: false, error: "존재하지 않는 기능입니다." };
+  if (parent.level !== "FEATURE") {
+    return { ok: false, error: "REQUIREMENT는 FEATURE 하위에만 만들 수 있습니다." };
+  }
+
+  const accessError = await assertAccess(parent.projectId);
+  if (accessError) return { ok: false, error: accessError };
+
+  const nameError = validateName(name);
+  if (nameError) return { ok: false, error: nameError };
+
+  const node = await prisma.node.create({
+    data: {
+      name: name.trim(),
+      description: description.trim() || null,
+      level: "REQUIREMENT",
+      parentId: parent.id,
+      projectId: parent.projectId,
+    },
+    select: { id: true },
+  });
+
+  revalidatePath(`/project/${parent.projectId}/node-mode`);
+  return { ok: true, nodeId: node.id };
+}
+
 /** 노드(MODULE/FEATURE 공통) 수정. 수정 시 version을 1 증가시킨다. */
 export async function updateNode(
   nodeId: number,

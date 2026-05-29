@@ -1,5 +1,6 @@
-// 참조: docs/domain/04-node.md (v1.2) — 노드 편집기 UI (MODULE + FEATURE)
-// 좌측: 모듈/피처 트리(펼침·접힘) + 추가 버튼. 우측: 선택 노드 공통 편집/삭제.
+// 참조: docs/domain/04-node.md (v1.3) — 노드 편집기 (MODULE | FEATURE | REQUIREMENT 매트릭스)
+// 모듈 셀 옆에 피처 셀, 그 옆에 요구사항 셀. 같은 상위는 rowspan으로 병합.
+// 셀은 인라인 편집(blur 자동 저장, version+1). 설명/버전 열은 두지 않는다.
 "use client";
 
 import { useState, useTransition } from "react";
@@ -7,296 +8,277 @@ import { useRouter } from "next/navigation";
 import {
   createModule,
   createFeature,
+  createRequirement,
   updateNode,
   deleteNode,
 } from "./actions";
+import { NodeCell } from "./NodeCell";
 
-type NodeLevel = "MODULE" | "FEATURE";
+export type ReqNode = { id: number; name: string };
+export type FeatureNode = { id: number; name: string; children: ReqNode[] };
+export type ModuleNode = { id: number; name: string; children: FeatureNode[] };
 
-export type FeatureNode = {
-  id: number;
-  name: string;
-  description: string | null;
-  version: number;
-};
-
-export type ModuleNode = FeatureNode & {
-  children: FeatureNode[];
-};
-
-type Selection = { id: number; level: NodeLevel } | null;
-
-type Props = {
-  projectId: number;
-  modules: ModuleNode[];
-};
-
+type Props = { projectId: number; modules: ModuleNode[] };
 type ActionResult = { ok: boolean; error?: string; nodeId?: number };
 
-const LEVEL_BADGE: Record<NodeLevel, { label: string; short: string }> = {
-  MODULE: { label: "MODULE", short: "M" },
-  FEATURE: { label: "FEATURE", short: "F" },
+// 한 테이블 행을 셀 단위로 평탄화한다.
+// moduleCell / featureCell은 그 셀을 "이 행에서 출력하고 rowSpan을 건다"는 의미.
+// 없으면(undefined) 상위 행의 rowSpan에 덮여 출력하지 않는다.
+type Row = {
+  moduleCell?: { id: number; name: string; rowSpan: number };
+  featureCell?: { id: number; name: string; rowSpan: number };
+  // 세 번째 칸(요구사항 영역)에 무엇을 그릴지
+  third:
+    | { kind: "req"; node: ReqNode }
+    | { kind: "req-empty" }
+    | { kind: "req-add"; featureId: number }
+    | { kind: "feat-add"; moduleId: number }
+    | { kind: "mod-empty" };
+  // mod-empty / feat-add 행은 기능 칸도 함께 비워야 하므로 표식
+  featureSpanFull?: boolean; // 기능+요구사항 칸을 colSpan으로 합칠지(모듈 빈 행)
 };
+
+/** 모듈 총 행 수. 피처 없으면 2(빈행+기능추가), 있으면 Σ피처행 + 기능추가행. */
+function moduleRowCount(m: ModuleNode): number {
+  if (m.children.length === 0) return 2;
+  return m.children.reduce((s, f) => s + featureRowCount(f), 0) + 1;
+}
+/** 피처 총 행 수: 요구사항 수(없으면 1 빈행) + 요구사항추가행. */
+function featureRowCount(f: FeatureNode): number {
+  return Math.max(1, f.children.length) + 1;
+}
+
+function buildRows(modules: ModuleNode[]): Row[] {
+  const rows: Row[] = [];
+  for (const m of modules) {
+    let modulePending: Row["moduleCell"] | undefined = {
+      id: m.id,
+      name: m.name,
+      rowSpan: moduleRowCount(m),
+    };
+    const takeModule = () => {
+      const c = modulePending;
+      modulePending = undefined;
+      return c;
+    };
+
+    if (m.children.length === 0) {
+      rows.push({ moduleCell: takeModule(), third: { kind: "mod-empty" }, featureSpanFull: true });
+      rows.push({ third: { kind: "feat-add", moduleId: m.id } });
+      continue;
+    }
+
+    for (const f of m.children) {
+      let featurePending: Row["featureCell"] | undefined = {
+        id: f.id,
+        name: f.name,
+        rowSpan: featureRowCount(f),
+      };
+      const takeFeature = () => {
+        const c = featurePending;
+        featurePending = undefined;
+        return c;
+      };
+
+      if (f.children.length === 0) {
+        rows.push({
+          moduleCell: takeModule(),
+          featureCell: takeFeature(),
+          third: { kind: "req-empty" },
+        });
+      } else {
+        for (const r of f.children) {
+          rows.push({
+            moduleCell: takeModule(),
+            featureCell: takeFeature(),
+            third: { kind: "req", node: r },
+          });
+        }
+      }
+      rows.push({ third: { kind: "req-add", featureId: f.id } });
+    }
+    rows.push({ third: { kind: "feat-add", moduleId: m.id } });
+  }
+  return rows;
+}
 
 export function NodeEditor({ projectId, modules }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [selected, setSelected] = useState<Selection>(
-    modules[0] ? { id: modules[0].id, level: "MODULE" } : null,
-  );
-  const [expanded, setExpanded] = useState<Set<number>>(
-    () => new Set(modules.map((m) => m.id)),
-  );
   const [error, setError] = useState<string | null>(null);
 
-  // 선택된 노드를 트리에서 찾는다.
-  const selectedNode: (FeatureNode & { level: NodeLevel }) | null = (() => {
-    if (!selected) return null;
-    if (selected.level === "MODULE") {
-      const m = modules.find((m) => m.id === selected.id);
-      return m ? { ...m, level: "MODULE" } : null;
-    }
-    for (const m of modules) {
-      const f = m.children.find((c) => c.id === selected.id);
-      if (f) return { ...f, level: "FEATURE" };
-    }
-    return null;
-  })();
-
-  function run(action: () => Promise<ActionResult>, onOk?: (r: ActionResult) => void) {
+  function run(action: () => Promise<ActionResult>) {
     setError(null);
     startTransition(async () => {
       const result = await action();
-      if (!result.ok) {
-        setError(result.error ?? "작업에 실패했습니다.");
-        return;
-      }
-      onOk?.(result);
+      if (!result.ok) setError(result.error ?? "작업에 실패했습니다.");
       router.refresh();
     });
   }
 
-  function toggle(moduleId: number) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      next.has(moduleId) ? next.delete(moduleId) : next.add(moduleId);
-      return next;
-    });
-  }
+  const rows = buildRows(modules);
 
-  function handleCreateModule() {
-    run(
-      () => createModule(projectId, "새 모듈", ""),
-      (r) => r.nodeId && setSelected({ id: r.nodeId, level: "MODULE" }),
-    );
-  }
-
-  function handleCreateFeature(moduleId: number) {
-    run(
-      () => createFeature(moduleId, "새 기능", ""),
-      (r) => {
-        setExpanded((prev) => new Set(prev).add(moduleId));
-        if (r.nodeId) setSelected({ id: r.nodeId, level: "FEATURE" });
-      },
-    );
-  }
-
-  function handleSave(formData: FormData) {
-    if (!selected) return;
-    const name = String(formData.get("name") ?? "");
-    const description = String(formData.get("description") ?? "");
-    run(() => updateNode(selected.id, name, description));
-  }
-
-  function handleDelete() {
-    if (!selected) return;
-    run(
-      () => deleteNode(selected.id),
-      () => setSelected(null),
-    );
-  }
-
-  const nodeRowClass = (active: boolean) =>
-    `flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
-      active
-        ? "bg-zinc-100 font-medium text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
-        : "text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-900"
-    }`;
-
-  const badge = (level: NodeLevel) => (
-    <span className="rounded bg-emerald-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
-      {LEVEL_BADGE[level].short}
-    </span>
+  const addBtn = (label: string, onClick: () => void) => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={pending}
+      className="rounded px-2 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50 disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-950/40"
+    >
+      {label}
+    </button>
   );
 
+  const cellCls =
+    "border border-zinc-200 px-2 py-1 align-middle dark:border-zinc-800";
+  const moduleCellCls = `${cellCls} bg-zinc-50/60 dark:bg-zinc-900/40`;
+
   return (
-    <div className="flex min-h-[24rem] gap-6">
-      {/* 좌측: 트리 */}
-      <div className="w-72 shrink-0">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
-            노드
-          </h2>
-          <button
-            type="button"
-            onClick={handleCreateModule}
-            disabled={pending}
-            className="rounded-md bg-zinc-900 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-          >
-            + 새 모듈
-          </button>
-        </div>
-
-        {modules.length === 0 ? (
-          <p className="px-2 text-sm text-zinc-500 dark:text-zinc-400">
-            모듈이 없습니다.
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-0.5">
-            {modules.map((m) => {
-              const isExpanded = expanded.has(m.id);
-              const moduleActive =
-                selected?.level === "MODULE" && selected.id === m.id;
-              return (
-                <li key={m.id}>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => toggle(m.id)}
-                      aria-label={isExpanded ? "접기" : "펼치기"}
-                      className="w-4 shrink-0 text-xs text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
-                    >
-                      {m.children.length > 0 ? (isExpanded ? "▼" : "▶") : ""}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelected({ id: m.id, level: "MODULE" });
-                        setError(null);
-                      }}
-                      className={nodeRowClass(moduleActive)}
-                    >
-                      {badge("MODULE")}
-                      <span className="truncate">{m.name}</span>
-                    </button>
-                  </div>
-
-                  {isExpanded && (
-                    <ul className="ml-5 mt-0.5 flex flex-col gap-0.5 border-l border-zinc-200 pl-2 dark:border-zinc-800">
-                      {m.children.map((f) => {
-                        const featActive =
-                          selected?.level === "FEATURE" && selected.id === f.id;
-                        return (
-                          <li key={f.id}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelected({ id: f.id, level: "FEATURE" });
-                                setError(null);
-                              }}
-                              className={nodeRowClass(featActive)}
-                            >
-                              {badge("FEATURE")}
-                              <span className="truncate">{f.name}</span>
-                            </button>
-                          </li>
-                        );
-                      })}
-                      <li>
-                        <button
-                          type="button"
-                          onClick={() => handleCreateFeature(m.id)}
-                          disabled={pending}
-                          className="rounded-md px-2 py-1 text-left text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-50 hover:text-zinc-700 disabled:opacity-50 dark:text-zinc-500 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
-                        >
-                          + 기능 추가
-                        </button>
-                      </li>
-                    </ul>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+    <div className="max-w-4xl">
+      <div className="mb-3">
+        {addBtn("+ 새 모듈", () =>
+          run(() => createModule(projectId, "새 모듈", "")),
         )}
       </div>
 
-      {/* 우측: 디테일 패널 */}
-      <div className="min-w-0 flex-1 border-l border-zinc-200 pl-6 dark:border-zinc-800">
-        {selectedNode ? (
-          <form
-            key={`${selectedNode.level}-${selectedNode.id}`}
-            action={handleSave}
-            className="flex max-w-lg flex-col gap-4"
-          >
-            <div className="flex items-center gap-2">
-              <span className="rounded bg-emerald-100 px-2 py-0.5 font-mono text-xs font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
-                {LEVEL_BADGE[selectedNode.level].label}
-              </span>
-              <span className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
-                v{selectedNode.version}
-              </span>
-            </div>
+      {error && (
+        <p
+          role="alert"
+          className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300"
+        >
+          {error}
+        </p>
+      )}
 
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="font-medium text-zinc-700 dark:text-zinc-300">
-                이름
-              </span>
-              <input
-                name="name"
-                type="text"
-                required
-                maxLength={255}
-                defaultValue={selectedNode.name}
-                className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-              />
-            </label>
+      {modules.length === 0 ? (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          모듈이 없습니다. “+ 새 모듈”로 시작하세요.
+        </p>
+      ) : (
+        <table className="w-full border-collapse border border-zinc-300 text-sm dark:border-zinc-700">
+          <thead>
+            <tr className="bg-zinc-100 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+              <th className="border border-zinc-300 px-3 py-2 dark:border-zinc-700" style={{ width: "30%" }}>
+                모듈
+              </th>
+              <th className="border border-zinc-300 px-3 py-2 dark:border-zinc-700" style={{ width: "35%" }}>
+                기능
+              </th>
+              <th className="border border-zinc-300 px-3 py-2 dark:border-zinc-700" style={{ width: "35%" }}>
+                요구사항
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i}>
+                {/* 모듈 칸 */}
+                {row.moduleCell && (
+                  <td className={moduleCellCls} rowSpan={row.moduleCell.rowSpan}>
+                    <NodeCell
+                      value={row.moduleCell.name}
+                      level="MODULE"
+                      pending={pending}
+                      onCommit={(name) =>
+                        run(() => updateNode(row.moduleCell!.id, name, ""))
+                      }
+                      onDelete={() =>
+                        run(() => deleteNode(row.moduleCell!.id))
+                      }
+                    />
+                  </td>
+                )}
 
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="font-medium text-zinc-700 dark:text-zinc-300">
-                설명
-              </span>
-              <textarea
-                name="description"
-                rows={4}
-                defaultValue={selectedNode.description ?? ""}
-                className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-              />
-            </label>
+                {/* 기능 칸 (모듈 빈 행이면 요구사항 칸과 합쳐 colSpan=2) */}
+                {row.featureSpanFull ? (
+                  <td
+                    className={`${cellCls} text-zinc-400 dark:text-zinc-500`}
+                    colSpan={2}
+                  >
+                    기능 없음
+                  </td>
+                ) : (
+                  <>
+                    {row.featureCell && (
+                      <td className={cellCls} rowSpan={row.featureCell.rowSpan}>
+                        <NodeCell
+                          value={row.featureCell.name}
+                          level="FEATURE"
+                          pending={pending}
+                          onCommit={(name) =>
+                            run(() => updateNode(row.featureCell!.id, name, ""))
+                          }
+                          onDelete={() =>
+                            run(() => deleteNode(row.featureCell!.id))
+                          }
+                        />
+                      </td>
+                    )}
 
-            {error && (
-              <p
-                role="alert"
-                className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300"
-              >
-                {error}
-              </p>
-            )}
+                    {/* "+ 기능 추가" 행: 기능 칸 자리에서 요구사항 칸까지 colSpan=2 */}
+                    {row.third.kind === "feat-add" && (
+                      <td className={cellCls} colSpan={2}>
+                        {addBtn("+ 기능 추가", () =>
+                          run(() =>
+                            createFeature(
+                              (row.third as { featureId?: number; moduleId: number }).moduleId,
+                              "새 기능",
+                              "",
+                            ),
+                          ),
+                        )}
+                      </td>
+                    )}
 
-            <div className="flex items-center gap-2">
-              <button
-                type="submit"
-                disabled={pending}
-                className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-              >
-                {pending ? "저장 중…" : "저장"}
-              </button>
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={pending}
-                className="rounded-md px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950/40"
-              >
-                삭제
-              </button>
-            </div>
-          </form>
-        ) : (
-          <div className="flex h-full items-center justify-center text-center text-sm text-zinc-400 dark:text-zinc-500">
-            <p>{error ?? "노드를 선택하거나 새로 만드세요."}</p>
-          </div>
-        )}
-      </div>
+                    {/* 요구사항 칸 */}
+                    {row.third.kind === "req" && (
+                      <td className={cellCls}>
+                        <NodeCell
+                          value={row.third.node.name}
+                          level="REQUIREMENT"
+                          pending={pending}
+                          onCommit={(name) =>
+                            run(() =>
+                              updateNode(
+                                (row.third as { node: ReqNode }).node.id,
+                                name,
+                                "",
+                              ),
+                            )
+                          }
+                          onDelete={() =>
+                            run(() =>
+                              deleteNode((row.third as { node: ReqNode }).node.id),
+                            )
+                          }
+                        />
+                      </td>
+                    )}
+                    {row.third.kind === "req-empty" && (
+                      <td className={`${cellCls} text-zinc-400 dark:text-zinc-500`}>
+                        요구사항 없음
+                      </td>
+                    )}
+                    {row.third.kind === "req-add" && (
+                      <td className={cellCls}>
+                        {addBtn("+ 요구사항 추가", () =>
+                          run(() =>
+                            createRequirement(
+                              (row.third as { featureId: number }).featureId,
+                              "새 요구사항",
+                              "",
+                            ),
+                          ),
+                        )}
+                      </td>
+                    )}
+                  </>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

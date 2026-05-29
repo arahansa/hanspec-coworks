@@ -1,5 +1,5 @@
 ---
-version: "1.2"
+version: "1.3"
 created: "2026-05-30"
 updated: "2026-05-30"
 author: "arahansa"
@@ -51,14 +51,23 @@ model Node {
 
 ### 계층 규칙 (편집기)
 - **MODULE**: 최상위 노드(`parentId=null`). 프로젝트에 직접 속한다.
-- **FEATURE**: MODULE의 자식(`parentId=<모듈 id>`). MODULE 하위에만 만들 수 있다.
-- 노드 수정 시(이름·설명) `version`을 1 증가시킨다. (MODULE/FEATURE 공통)
+- **FEATURE**: MODULE의 자식. MODULE 하위에만 만들 수 있다.
+- **REQUIREMENT**: FEATURE의 자식. FEATURE 하위에만 만들 수 있으며 자식 노드를 가질 수 없다(TASK는 추후).
+- 노드 수정 시(이름) `version`을 1 증가시킨다. (모든 레벨 공통)
 - 노드 삭제 시 하위 노드는 `onDelete: Cascade`로 함께 삭제된다.
 
+### 편집기 UI (매트릭스 테이블)
+- 화면은 **모듈 | 기능 | 요구사항** 3열 테이블이다.
+- 같은 상위에 속한 하위 노드가 여러 개면 상위 셀을 `rowSpan`으로 세로 병합한다(스프레드시트 형태).
+- 각 셀은 이름을 **인라인 편집**하며, 셀을 벗어날 때(blur) 변경분을 자동 저장한다(`version+1`).
+- 하위가 없는 셀은 "기능 없음 / 요구사항 없음"으로 표시하고, 각 칸 하단에 "+ 추가" 행을 둔다.
+- 설명·버전은 별도 열로 노출하지 않는다(이름 중심).
+
 ### 구현 단계
-- 1단계: Node 테이블 전체 구조 + **MODULE** 레벨 CRUD.
-- 2단계(현재): **FEATURE** 레벨 추가. 좌측 트리에서 MODULE 아래 FEATURE를 펼침·접힘으로 표시하고, MODULE/FEATURE 공통 우측 패널에서 편집한다.
-- 이후 단계에서 REQUIREMENT 레벨과 태그, TASK로 확장한다.
+- 1단계: Node 테이블 전체 구조 + **MODULE** 레벨.
+- 2단계: **FEATURE** 레벨 추가.
+- 3단계(현재): **REQUIREMENT** 레벨 추가 + 매트릭스 테이블 UI 전환.
+- 이후 단계에서 태그, TASK로 확장한다.
 
 # 관련문서
 - [프로젝트](./01-project.md)
