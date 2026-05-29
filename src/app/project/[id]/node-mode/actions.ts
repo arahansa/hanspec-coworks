@@ -136,11 +136,13 @@ export async function createRequirement(
   return { ok: true, nodeId: node.id };
 }
 
-/** 노드(MODULE/FEATURE 공통) 수정. 수정 시 version을 1 증가시킨다. */
+/**
+ * 노드(모든 레벨 공통) 수정. 전달된 필드만 갱신하며 version을 1 증가시킨다.
+ * 이름 셀 편집과 설명 편집을 분리하기 위해 부분 수정(patch)을 지원한다.
+ */
 export async function updateNode(
   nodeId: number,
-  name: string,
-  description: string,
+  patch: { name?: string; description?: string },
 ): Promise<NodeActionResult> {
   const node = await prisma.node.findUnique({
     where: { id: nodeId },
@@ -151,17 +153,20 @@ export async function updateNode(
   const accessError = await assertAccess(node.projectId);
   if (accessError) return { ok: false, error: accessError };
 
-  const nameError = validateName(name);
-  if (nameError) return { ok: false, error: nameError };
+  const data: { name?: string; description?: string | null; version: { increment: number } } = {
+    version: { increment: 1 },
+  };
 
-  await prisma.node.update({
-    where: { id: nodeId },
-    data: {
-      name: name.trim(),
-      description: description.trim() || null,
-      version: { increment: 1 },
-    },
-  });
+  if (patch.name !== undefined) {
+    const nameError = validateName(patch.name);
+    if (nameError) return { ok: false, error: nameError };
+    data.name = patch.name.trim();
+  }
+  if (patch.description !== undefined) {
+    data.description = patch.description.trim() || null;
+  }
+
+  await prisma.node.update({ where: { id: nodeId }, data });
 
   revalidatePath(`/project/${node.projectId}/node-mode`);
   return { ok: true, nodeId };

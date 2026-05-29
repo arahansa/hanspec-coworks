@@ -1,6 +1,6 @@
 // 참조: docs/domain/04-node.md (v1.3) — 노드 편집기 (MODULE | FEATURE | REQUIREMENT 매트릭스)
 // 모듈 셀 옆에 피처 셀, 그 옆에 요구사항 셀. 같은 상위는 rowspan으로 병합.
-// 셀은 인라인 편집(blur 자동 저장, version+1). 설명/버전 열은 두지 않는다.
+// 셀은 인라인 편집(blur 자동 저장, version+1). 상세(ⓘ) 아이콘으로 우측 상세 패널.
 "use client";
 
 import { useState, useTransition } from "react";
@@ -13,10 +13,20 @@ import {
   deleteNode,
 } from "./actions";
 import { NodeCell } from "./NodeCell";
+import { NodeDetailPanel, type DetailNode } from "./NodeDetailPanel";
 
-export type ReqNode = { id: number; name: string };
-export type FeatureNode = { id: number; name: string; children: ReqNode[] };
-export type ModuleNode = { id: number; name: string; children: FeatureNode[] };
+type Level = "MODULE" | "FEATURE" | "REQUIREMENT";
+
+type NodeBase = {
+  id: number;
+  name: string;
+  description: string | null;
+  version: number;
+  createdAt: string; // 직렬화된 ISO 문자열
+};
+export type ReqNode = NodeBase;
+export type FeatureNode = NodeBase & { children: ReqNode[] };
+export type ModuleNode = NodeBase & { children: FeatureNode[] };
 
 type Props = { projectId: number; modules: ModuleNode[] };
 type ActionResult = { ok: boolean; error?: string; nodeId?: number };
@@ -106,6 +116,7 @@ export function NodeEditor({ projectId, modules }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<number | null>(null);
 
   function run(action: () => Promise<ActionResult>) {
     setError(null);
@@ -115,6 +126,22 @@ export function NodeEditor({ projectId, modules }: Props) {
       router.refresh();
     });
   }
+
+  // 트리에서 detailId에 해당하는 노드를 찾아 상세 패널 데이터로 만든다.
+  // 데이터가 갱신되면(예: 설명 저장 후 refresh) 항상 최신 값을 반영한다.
+  const detailNode: DetailNode | null = (() => {
+    if (detailId === null) return null;
+    for (const m of modules) {
+      if (m.id === detailId) return { ...m, level: "MODULE" };
+      for (const f of m.children) {
+        if (f.id === detailId) return { ...f, level: "FEATURE" };
+        for (const r of f.children) {
+          if (r.id === detailId) return { ...r, level: "REQUIREMENT" };
+        }
+      }
+    }
+    return null; // 삭제된 경우
+  })();
 
   const rows = buildRows(modules);
 
@@ -134,7 +161,7 @@ export function NodeEditor({ projectId, modules }: Props) {
   const moduleCellCls = `${cellCls} bg-zinc-50/60 dark:bg-zinc-900/40`;
 
   return (
-    <div className="max-w-4xl">
+    <div>
       <div className="mb-3">
         {addBtn("+ 새 모듈", () =>
           run(() => createModule(projectId, "새 모듈", "")),
@@ -150,6 +177,8 @@ export function NodeEditor({ projectId, modules }: Props) {
         </p>
       )}
 
+      <div className="flex gap-6">
+       <div className="min-w-0 flex-1">
       {modules.length === 0 ? (
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           모듈이 없습니다. “+ 새 모듈”로 시작하세요.
@@ -179,9 +208,11 @@ export function NodeEditor({ projectId, modules }: Props) {
                       value={row.moduleCell.name}
                       level="MODULE"
                       pending={pending}
+                      active={detailId === row.moduleCell.id}
                       onCommit={(name) =>
-                        run(() => updateNode(row.moduleCell!.id, name, ""))
+                        run(() => updateNode(row.moduleCell!.id, { name }))
                       }
+                      onDetail={() => setDetailId(row.moduleCell!.id)}
                       onDelete={() =>
                         run(() => deleteNode(row.moduleCell!.id))
                       }
@@ -205,9 +236,11 @@ export function NodeEditor({ projectId, modules }: Props) {
                           value={row.featureCell.name}
                           level="FEATURE"
                           pending={pending}
+                          active={detailId === row.featureCell.id}
                           onCommit={(name) =>
-                            run(() => updateNode(row.featureCell!.id, name, ""))
+                            run(() => updateNode(row.featureCell!.id, { name }))
                           }
+                          onDetail={() => setDetailId(row.featureCell!.id)}
                           onDelete={() =>
                             run(() => deleteNode(row.featureCell!.id))
                           }
@@ -237,14 +270,16 @@ export function NodeEditor({ projectId, modules }: Props) {
                           value={row.third.node.name}
                           level="REQUIREMENT"
                           pending={pending}
+                          active={detailId === row.third.node.id}
                           onCommit={(name) =>
                             run(() =>
-                              updateNode(
-                                (row.third as { node: ReqNode }).node.id,
+                              updateNode((row.third as { node: ReqNode }).node.id, {
                                 name,
-                                "",
-                              ),
+                              }),
                             )
+                          }
+                          onDetail={() =>
+                            setDetailId((row.third as { node: ReqNode }).node.id)
                           }
                           onDelete={() =>
                             run(() =>
@@ -279,6 +314,19 @@ export function NodeEditor({ projectId, modules }: Props) {
           </tbody>
         </table>
       )}
+       </div>
+
+        {detailNode && (
+          <NodeDetailPanel
+            node={detailNode}
+            pending={pending}
+            onClose={() => setDetailId(null)}
+            onSaveDescription={(description) =>
+              run(() => updateNode(detailNode.id, { description }))
+            }
+          />
+        )}
+      </div>
     </div>
   );
 }

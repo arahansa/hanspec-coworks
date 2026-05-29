@@ -27,27 +27,48 @@ export default async function ProjectNodeModePage({
   if (!project) notFound();
 
   // MODULE → FEATURE → REQUIREMENT 3단계 트리를 조회한다.
+  // 상세 패널용으로 description·version·createdAt도 함께 가져온다.
+  const detail = {
+    id: true,
+    name: true,
+    description: true,
+    version: true,
+    createdAt: true,
+  } as const;
+
   const modules = await prisma.node.findMany({
     where: { projectId, level: "MODULE", parentId: null },
     orderBy: { createdAt: "asc" },
     select: {
-      id: true,
-      name: true,
+      ...detail,
       children: {
         where: { level: "FEATURE" },
         orderBy: { createdAt: "asc" },
         select: {
-          id: true,
-          name: true,
+          ...detail,
           children: {
             where: { level: "REQUIREMENT" },
             orderBy: { createdAt: "asc" },
-            select: { id: true, name: true },
+            select: detail,
           },
         },
       },
     },
   });
+
+  // Date → ISO 문자열로 직렬화해 클라이언트 컴포넌트에 전달한다.
+  const serialized = modules.map((m) => ({
+    ...m,
+    createdAt: m.createdAt.toISOString(),
+    children: m.children.map((f) => ({
+      ...f,
+      createdAt: f.createdAt.toISOString(),
+      children: f.children.map((r) => ({
+        ...r,
+        createdAt: r.createdAt.toISOString(),
+      })),
+    })),
+  }));
 
   return (
     <div className="p-8">
@@ -58,7 +79,7 @@ export default async function ProjectNodeModePage({
         NodeMode
       </h1>
 
-      <NodeEditor projectId={projectId} modules={modules} />
+      <NodeEditor projectId={projectId} modules={serialized} />
     </div>
   );
 }

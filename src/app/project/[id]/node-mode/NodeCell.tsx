@@ -7,8 +7,12 @@ type Props = {
   value: string;
   level: "MODULE" | "FEATURE" | "REQUIREMENT";
   pending: boolean;
+  /** 상세 패널에서 현재 열려 있는 노드인지(강조 표시). */
+  active?: boolean;
   /** 값이 바뀐 채로 포커스를 잃으면 호출(자동 저장). */
   onCommit: (next: string) => void;
+  /** 상세(ℹ) 아이콘 클릭. */
+  onDetail: () => void;
   onDelete: () => void;
 };
 
@@ -19,7 +23,15 @@ const BADGE: Record<Props["level"], { short: string; cls: string }> = {
 };
 
 /** 한 노드의 이름 셀. 클릭/포커스로 편집, blur 시 변경분 자동 저장. */
-export function NodeCell({ value, level, pending, onCommit, onDelete }: Props) {
+export function NodeCell({
+  value,
+  level,
+  pending,
+  active = false,
+  onCommit,
+  onDetail,
+  onDelete,
+}: Props) {
   const [draft, setDraft] = useState(value);
   const badge = BADGE[level];
 
@@ -30,7 +42,11 @@ export function NodeCell({ value, level, pending, onCommit, onDelete }: Props) {
   }
 
   return (
-    <div className="group flex items-center gap-2">
+    <div
+      className={`group flex items-center gap-2 rounded-md ${
+        active ? "bg-blue-50 dark:bg-blue-950/30" : ""
+      }`}
+    >
       <span
         className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold ${badge.cls}`}
       >
@@ -50,6 +66,18 @@ export function NodeCell({ value, level, pending, onCommit, onDelete }: Props) {
         }}
         className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 py-1 text-sm text-zinc-900 outline-none hover:border-zinc-200 focus:border-zinc-400 focus:bg-white disabled:opacity-50 dark:text-zinc-100 dark:hover:border-zinc-700 dark:focus:bg-zinc-900"
       />
+      <button
+        type="button"
+        onClick={onDetail}
+        aria-label="상세 정보"
+        className={`shrink-0 rounded px-1.5 py-0.5 text-xs transition hover:bg-blue-50 hover:text-blue-600 group-hover:opacity-100 dark:hover:bg-blue-950/40 dark:hover:text-blue-400 ${
+          active
+            ? "text-blue-600 opacity-100 dark:text-blue-400"
+            : "text-zinc-300 opacity-0 dark:text-zinc-600"
+        }`}
+      >
+        ⓘ
+      </button>
       <button
         type="button"
         onClick={onDelete}
