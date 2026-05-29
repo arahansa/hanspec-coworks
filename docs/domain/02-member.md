@@ -1,9 +1,8 @@
 
 # 개요
+멤버(Member) : 로그인/로그아웃할 수 있고 프로젝트에 참여할 수 있는 웹사이트 사용자들
 
-프로젝트에 참여할 수 있는 멤버들
-
-# 필드
+# 테이블 member 필드
 id: 멤버의 고유 식별자(숫자) auto increment
 username : 이름 (max length 20)
 password: 비밀번호 (문자열 제약 없음)
