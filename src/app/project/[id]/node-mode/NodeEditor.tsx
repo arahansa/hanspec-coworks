@@ -321,6 +321,9 @@ export function NodeEditor({ projectId, modules }: Props) {
             node={detailNode}
             pending={pending}
             onClose={() => setDetailId(null)}
+            onOpenDetail={() =>
+              router.push(`/project/${projectId}/node/${detailNode.id}`)
+            }
             onSaveDescription={(description) =>
               run(() => updateNode(detailNode.id, { description }))
             }

@@ -1,7 +1,7 @@
 ---
-version: "1.3"
+version: "1.4"
 created: "2026-05-30"
-updated: "2026-05-30"
+updated: "2026-06-02"
 author: "arahansa"
 ---
 
@@ -85,4 +85,27 @@ model Node {
 
 ## 태그 붙이기
 - 노드에 태그(`./05-tag.md`)를 붙이거나 삭제할 수 있습니다. (태그는 여러개 붙일 수 있음)
+
+# 추가요청
+- 특정 노드에 대하여 상태를 변경할 수 있습니다. 주로 REQUIREMENT 레벨 노드에서 상태 변경을 할 수 있습니다.
+- 상태는 다음과 같이 있습니다.
+
+```
+초안
+진행중
+완료
+```
+
+## 추가요청2 담당자 지정 가능
+하나의 노드당 여러 명의 담당자를 지정할 수 있습니다. 우선 REQUIREMENT만 지정할 수 있도록 합니다. 
+필요하다면 테이블을 알아서 만들어주고, REQUIREMENT 상세보기에서 담당자를 @를 통해서 지정할 수 있도록 해주세요
+필요하다면 ./02-member.md 의 사용자 목록을 불러오는 API 도 만들어주세오ㅛ 
+
+### 구현 완료 (2026-06-02)
+추가요청1·2를 모두 구현했다. 설계: `docs/superpowers/specs/2026-06-02-node-status-assignee-design.md`.
+
+- **상태**: `Node.status`(`NodeStatus` enum: `DRAFT`/`IN_PROGRESS`/`DONE`, 기본 `DRAFT`) 컬럼 추가. REQUIREMENT 상세에서만 변경. 상태 변경은 `version`을 증가시키지 않는다(이름/설명 수정만 version+1).
+- **담당자**: `node_assignee` 조인 테이블(복합 PK `(nodeId, memberId)`)로 한 REQUIREMENT에 여러 담당자 지정. 상세에서 `@` 검색 자동완성으로 추가/제거.
+- **멤버 API**: `GET /api/members?q=<prefix>` — username prefix(대소문자 무시) 검색, 비로그인 401. 비밀번호 등 민감 필드 미반환.
+- **산출 코드**: `prisma/schema.prisma`(NodeStatus·Node.status·NodeAssignee), `src/app/api/members/route.ts`, `src/app/project/[id]/node/[nodeId]/{actions.ts,StatusSection.tsx,AssigneeSection.tsx,node-status.ts,page.tsx}`.
 

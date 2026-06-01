@@ -37,7 +37,8 @@ model Member {
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
-  accessToken AccessToken?
+  accessToken   AccessToken?
+  assignedNodes NodeAssignee[]
 }
 
 /// 프로젝트 정보.
@@ -60,22 +61,58 @@ enum NodeLevel {
   REQUIREMENT
 }
 
+/// 노드 상태. 주로 REQUIREMENT에서 사용. (03-node.md 추가요청1)
+enum NodeStatus {
+  DRAFT // 초안
+  IN_PROGRESS // 진행중
+  DONE // 완료
+}
+
 /// 프로젝트의 작업 단위. parent_id self-reference 트리 구조.
 /// 참조: docs/domain/04-node.md
 model Node {
-  id          Int       @id @default(autoincrement())
-  name        String    @db.VarChar(255)
+  id          Int        @id @default(autoincrement())
+  name        String     @db.VarChar(255)
   level       NodeLevel
   description String?    @db.Text
+  status      NodeStatus @default(DRAFT)
   parentId    Int? // self-ref. 최상위(MODULE)는 null
   projectId   Int
-  version     Int       @default(1)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  version     Int        @default(1)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
-  parent   Node?   @relation("NodeChildren", fields: [parentId], references: [id], onDelete: Cascade)
-  children Node[]  @relation("NodeChildren")
-  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent    Node?          @relation("NodeChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children  Node[]         @relation("NodeChildren")
+  project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks     Task[]
+  assignees NodeAssignee[]
+}
+
+/// 노드-담당자 다대다 조인. 우선 REQUIREMENT에만 지정. (03-node.md 추가요청2)
+model NodeAssignee {
+  nodeId     Int
+  memberId   Int
+  assignedAt DateTime @default(now())
+
+  node   Node   @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@id([nodeId, memberId])
+  @@map("node_assignee")
+}
+
+/// REQUIREMENT Node의 하위 작업.
+/// 참조: docs/domain/06-task.md
+model Task {
+  id          Int      @id @default(autoincrement())
+  progress    Int      @default(0) // 진행도 (0~100)
+  description String   @db.Text
+  nodeId      Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  node Node @relation(fields: [nodeId], references: [id], onDelete: Cascade)
 }
 
 /// 멤버가 로컬(CLI/MCP) 환경에서 사용할 액세스 토큰. 멤버당 1개.

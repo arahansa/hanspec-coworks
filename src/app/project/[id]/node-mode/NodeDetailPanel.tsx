@@ -23,11 +23,13 @@ type Props = {
   node: DetailNode;
   pending: boolean;
   onClose: () => void;
+  /** 요구사항 상세 페이지로 이동(REQUIREMENT에서만 노출). */
+  onOpenDetail: () => void;
   /** 설명 저장(변경 시에만 호출). */
   onSaveDescription: (description: string) => void;
 };
 
-export function NodeDetailPanel({ node, pending, onClose, onSaveDescription }: Props) {
+export function NodeDetailPanel({ node, pending, onClose, onOpenDetail, onSaveDescription }: Props) {
   const [draft, setDraft] = useState(node.description ?? "");
   const dirty = draft.trim() !== (node.description ?? "").trim();
 
@@ -39,14 +41,27 @@ export function NodeDetailPanel({ node, pending, onClose, onSaveDescription }: P
             {LEVEL_LABEL[node.level]}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="닫기"
-          className="rounded px-1.5 py-0.5 text-sm text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-        >
-          ✕
-        </button>
+        <div className="flex items-center gap-1">
+          {node.level === "REQUIREMENT" && (
+            <button
+              type="button"
+              onClick={onOpenDetail}
+              aria-label="요구사항 상세 보기"
+              title="요구사항 상세 보기"
+              className="rounded px-1.5 py-0.5 text-sm text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            >
+              ↗
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="닫기"
+            className="rounded px-1.5 py-0.5 text-sm text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       <h2 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
@@ -54,6 +69,10 @@ export function NodeDetailPanel({ node, pending, onClose, onSaveDescription }: P
       </h2>
 
       <dl className="mt-4 space-y-2 text-sm">
+        <div className="flex justify-between gap-4">
+          <dt className="text-zinc-500 dark:text-zinc-400">ID</dt>
+          <dd className="font-mono text-zinc-700 dark:text-zinc-300">#{node.id}</dd>
+        </div>
         <div className="flex justify-between gap-4">
           <dt className="text-zinc-500 dark:text-zinc-400">버전</dt>
           <dd className="font-mono text-zinc-700 dark:text-zinc-300">v{node.version}</dd>

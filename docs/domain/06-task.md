@@ -8,3 +8,5 @@ node_id: 작업이 속한 노드의 id (number)
 description: 작업 설명 (text)
 
 
+# 추가요청
+특정 REQUIREMENT Node에 대해 추가로 TASK를 생성할 수 있습니다.
