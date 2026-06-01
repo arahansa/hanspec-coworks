@@ -36,6 +36,8 @@ model Member {
   grade     MemberGrade @default(GENERAL)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
+
+  accessToken AccessToken?
 }
 
 /// 프로젝트 정보.
@@ -74,4 +76,18 @@ model Node {
   parent   Node?   @relation("NodeChildren", fields: [parentId], references: [id], onDelete: Cascade)
   children Node[]  @relation("NodeChildren")
   project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+/// 멤버가 로컬(CLI/MCP) 환경에서 사용할 액세스 토큰. 멤버당 1개.
+/// 유효기간(7일)은 컬럼이 아니라 createdAt 기준으로 애플리케이션에서 파생 계산한다.
+/// 참조: docs/domain/08-access_token.md
+model AccessToken {
+  id        Int      @id @default(autoincrement())
+  token     String // 액세스 토큰 문자열 (제약 없음)
+  createdAt DateTime @default(now()) // 발급일
+  userId    Int      @unique // member.id FK, 1인 1토큰
+
+  member Member @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("access_token")
 }
