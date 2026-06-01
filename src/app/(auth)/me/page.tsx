@@ -4,12 +4,17 @@ import { redirect } from "next/navigation";
 import { getCurrentMember } from "@/lib/auth";
 import { signOut } from "../actions";
 import { AuthCard } from "../AuthCard";
+import { getAccessToken, TOKEN_TTL_DAYS } from "@/lib/access-token";
+import { issueAccessToken } from "./actions";
+import { AccessTokenField } from "./AccessTokenField";
 
 export const dynamic = "force-dynamic";
 
 export default async function MePage() {
   const member = await getCurrentMember();
   if (!member) redirect("/signin");
+
+  const accessToken = await getAccessToken(member.id);
 
   return (
     <AuthCard title="내 정보">
@@ -27,6 +32,57 @@ export default async function MePage() {
           </dd>
         </div>
       </dl>
+
+      <section className="mt-6 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          액세스 토큰
+        </h2>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          로컬(CLI/MCP) 환경에서 사용합니다. 유효기간은 발급일로부터 {TOKEN_TTL_DAYS}일입니다.
+        </p>
+
+        {accessToken ? (
+          <div className="mt-3 space-y-3">
+            <AccessTokenField token={accessToken.token} />
+            <dl className="space-y-2 text-xs">
+              <div className="flex justify-between gap-4">
+                <dt className="text-zinc-500 dark:text-zinc-400">발급일</dt>
+                <dd className="text-zinc-700 dark:text-zinc-300">
+                  {accessToken.createdAt.toLocaleDateString("ko-KR")}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-zinc-500 dark:text-zinc-400">만료일</dt>
+                <dd className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300">
+                  {accessToken.expiresAt.toLocaleDateString("ko-KR")}
+                  {accessToken.expired && (
+                    <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-950 dark:text-red-300">
+                      만료됨
+                    </span>
+                  )}
+                </dd>
+              </div>
+            </dl>
+            <form action={issueAccessToken}>
+              <button
+                type="submit"
+                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+              >
+                재갱신
+              </button>
+            </form>
+          </div>
+        ) : (
+          <form action={issueAccessToken} className="mt-3">
+            <button
+              type="submit"
+              className="w-full rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            >
+              발급받기
+            </button>
+          </form>
+        )}
+      </section>
 
       {member.grade === "SUPER" && (
         <Link
