@@ -1,4 +1,5 @@
 // 참조: docs/domain/02-member.md (v1.0) — 내정보 화면
+//       docs/domain/08-access_token.md (v1.0) — 액세스 토큰 발급/재갱신 섹션
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentMember } from "@/lib/auth";

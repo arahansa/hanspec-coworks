@@ -18,13 +18,13 @@ export function generateTokenString(): string {
 }
 
 /** 발급일 기준 만료 시각을 계산한다. */
-export function expiresAt(createdAt: Date): Date {
+export function computeExpiresAt(createdAt: Date): Date {
   return new Date(createdAt.getTime() + TOKEN_TTL_MS);
 }
 
 /** 발급일 기준 현재 만료 여부를 반환한다. */
 export function isExpired(createdAt: Date): boolean {
-  return Date.now() > expiresAt(createdAt).getTime();
+  return Date.now() > computeExpiresAt(createdAt).getTime();
 }
 
 export type AccessTokenView = {
@@ -50,7 +50,7 @@ export async function getAccessToken(
   return {
     token: row.token,
     createdAt: row.createdAt,
-    expiresAt: expiresAt(row.createdAt),
+    expiresAt: computeExpiresAt(row.createdAt),
     expired: isExpired(row.createdAt),
   };
 }

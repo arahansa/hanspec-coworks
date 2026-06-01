@@ -16,12 +16,21 @@ export async function issueAccessToken(): Promise<void> {
   if (!member) redirect("/signin");
 
   const token = generateTokenString();
-  await prisma.accessToken.upsert({
-    where: { userId: member.id },
-    create: { userId: member.id, token },
-    // 재갱신: 토큰 문자열을 새로 발급하고 발급일을 현재로 갱신.
-    update: { token, createdAt: new Date() },
-  });
+  try {
+    await prisma.accessToken.upsert({
+      where: { userId: member.id },
+      create: { userId: member.id, token },
+      // 재갱신: 토큰 문자열을 새로 발급하고 발급일을 현재로 갱신.
+      // createdAt은 @default(now())가 update에는 적용되지 않으므로 명시한다.
+      // 만료 판정(getAccessToken)도 동일하게 앱 시계를 쓰므로 발급·판정이 일관된다.
+      update: { token, createdAt: new Date() },
+    });
+  } catch (error) {
+    // DB 쓰기 실패 시 raw 500 대신 의미 있는 에러를 던져 error 바운더리가 처리하게 한다.
+    throw new Error("액세스 토큰 발급에 실패했습니다. 잠시 후 다시 시도해 주세요.", {
+      cause: error,
+    });
+  }
 
   revalidatePath("/me");
 }

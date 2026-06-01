@@ -1,17 +1,26 @@
 // 참조: docs/domain/08-access_token.md (v1.0) — 토큰 평문 표시 + 복사
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /** 액세스 토큰을 평문으로 표시하고 클립보드 복사를 제공한다. */
 export function AccessTokenField({ token }: { token: string }) {
   const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    },
+    [],
+  );
 
   async function copy() {
     try {
       await navigator.clipboard.writeText(token);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setCopied(false), 1500);
     } catch {
       // 클립보드 권한이 없으면 무시 — 사용자가 직접 선택해 복사할 수 있다.
     }
