@@ -3,6 +3,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+
+// 접힘 상태를 새로고침·경로 이동 후에도 유지하기 위한 localStorage 키.
+const COLLAPSE_KEY = "coworks.leftnav.collapsed";
 
 type ProjectItem = { id: number; name: string };
 
@@ -27,6 +31,20 @@ function selectedProjectId(pathname: string): number | null {
 
 export function LeftNav({ projects }: Props) {
   const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
+
+  // 마운트 시 저장된 접힘 상태를 복원한다.
+  useEffect(() => {
+    setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
+  }, []);
+
+  function toggle() {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
+      return next;
+    });
+  }
 
   // 비로그인이거나 숨김 경로면 렌더하지 않는다.
   if (!projects) return null;
@@ -36,11 +54,41 @@ export function LeftNav({ projects }: Props) {
 
   const selectedId = selectedProjectId(pathname);
 
+  // 접힌 상태: 얇은 바에 펼치기 버튼만 노출해 본문 공간을 넓힌다.
+  if (collapsed) {
+    return (
+      <aside className="w-10 shrink-0 border-r border-zinc-200 p-2 dark:border-zinc-800">
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label="프로젝트 네비게이션 펼치기"
+          aria-expanded={false}
+          title="펼치기"
+          className="flex h-8 w-full items-center justify-center rounded-md text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+        >
+          »
+        </button>
+      </aside>
+    );
+  }
+
   return (
     <aside className="w-56 shrink-0 border-r border-zinc-200 p-4 dark:border-zinc-800">
-      <h2 className="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
-        프로젝트
-      </h2>
+      <div className="flex items-center justify-between px-2 pb-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+          프로젝트
+        </h2>
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label="프로젝트 네비게이션 접기"
+          aria-expanded={true}
+          title="접기"
+          className="rounded px-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+        >
+          «
+        </button>
+      </div>
       {projects.length === 0 ? (
         <p className="px-2 text-sm text-zinc-500 dark:text-zinc-400">
           프로젝트가 없습니다.
