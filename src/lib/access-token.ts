@@ -54,3 +54,26 @@ export async function getAccessToken(
     expired: isExpired(row.createdAt),
   };
 }
+
+/**
+ * 액세스 토큰 문자열로 유효한 멤버 id를 반환한다(헤더 기반 API 인증용).
+ * 토큰이 없거나 만료(발급 7일 경과)면 null.
+ *
+ * 보안 노트: 현재 토큰은 평문 저장이다. 외부 API로 노출되므로 향후 해시 저장
+ * (SHA-256 등)으로 전환하는 것을 권장한다.
+ * 참조: docs/superpowers/specs/2026-06-02-node-api-design.md
+ */
+export async function authenticateByToken(
+  token: string,
+): Promise<number | null> {
+  if (!token) return null;
+
+  const row = await prisma.accessToken.findFirst({
+    where: { token },
+    select: { userId: true, createdAt: true },
+  });
+  if (!row) return null;
+  if (isExpired(row.createdAt)) return null;
+
+  return row.userId;
+}
