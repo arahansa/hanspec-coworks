@@ -16,6 +16,10 @@ import {
 import { NodeCell } from "./NodeCell";
 import { NodeDetailPanel, type DetailNode } from "./NodeDetailPanel";
 import type { NodeStatus } from "@/generated/prisma/client";
+import {
+  NODE_STATUS_BADGE_CLASS,
+  NODE_STATUS_LABEL,
+} from "@/app/project/[id]/node/[nodeId]/node-status";
 
 type Level = "MODULE" | "FEATURE" | "REQUIREMENT";
 
@@ -312,6 +316,24 @@ export function NodeEditor({ projectId, modules }: Props) {
                             )
                           }
                         />
+                        {/* 상태·담당자를 셀에서 함께 노출 (03-node.md) */}
+                        <div className="mt-1 flex flex-wrap items-center gap-1">
+                          <span
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                              NODE_STATUS_BADGE_CLASS[row.third.node.status]
+                            }`}
+                          >
+                            {NODE_STATUS_LABEL[row.third.node.status]}
+                          </span>
+                          {row.third.node.assignees.map((a) => (
+                            <span
+                              key={a.id}
+                              className="rounded-full bg-zinc-100 px-1.5 py-0.5 font-mono text-[10px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+                            >
+                              @{a.username}
+                            </span>
+                          ))}
+                        </div>
                       </td>
                     )}
                     {row.third.kind === "req-empty" && (
