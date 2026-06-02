@@ -210,13 +210,13 @@ export function NodeEditor({ projectId, modules }: Props) {
         <table className="w-full border-collapse border border-zinc-300 text-sm dark:border-zinc-700">
           <thead>
             <tr className="bg-zinc-100 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-              <th className="border border-zinc-300 px-3 py-2 dark:border-zinc-700" style={{ width: "30%" }}>
+              <th className="border border-zinc-300 px-3 py-2 dark:border-zinc-700" style={{ width: "20%" }}>
                 모듈
               </th>
-              <th className="border border-zinc-300 px-3 py-2 dark:border-zinc-700" style={{ width: "35%" }}>
+              <th className="border border-zinc-300 px-3 py-2 dark:border-zinc-700" style={{ width: "28%" }}>
                 기능
               </th>
-              <th className="border border-zinc-300 px-3 py-2 dark:border-zinc-700" style={{ width: "35%" }}>
+              <th className="border border-zinc-300 px-3 py-2 dark:border-zinc-700" style={{ width: "52%" }}>
                 요구사항
               </th>
             </tr>
