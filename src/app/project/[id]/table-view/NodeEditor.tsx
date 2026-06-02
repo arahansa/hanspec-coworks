@@ -3,7 +3,7 @@
 // 셀은 인라인 편집(blur 자동 저장, version+1). 상세(ⓘ) 아이콘으로 우측 상세 패널.
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   createModule,
@@ -15,6 +15,7 @@ import {
 } from "./actions";
 import { NodeCell } from "./NodeCell";
 import { NodeDetailPanel, type DetailNode } from "./NodeDetailPanel";
+import { ModuleFilter } from "./ModuleFilter";
 import type { NodeStatus } from "@/generated/prisma/client";
 import {
   NODE_STATUS_BADGE_CLASS,
@@ -139,6 +140,32 @@ export function NodeEditor({ projectId, modules }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
 
+  // 모듈 필터: 선택된 모듈 id 집합. 초기엔 전체 선택.
+  const [selectedModuleIds, setSelectedModuleIds] = useState<Set<number>>(
+    () => new Set(modules.map((m) => m.id)),
+  );
+  // 모듈 목록이 바뀌면(추가/삭제) 동기화한다.
+  // - 새로 생긴 모듈은 자동 선택(전체가 보이던 기본 동작 유지).
+  // - 삭제된 모듈 id는 선택에서 제거.
+  const prevIdsRef = useRef<number[]>(modules.map((m) => m.id));
+  useEffect(() => {
+    const currentIds = modules.map((m) => m.id);
+    const prev = prevIdsRef.current;
+    const added = currentIds.filter((id) => !prev.includes(id));
+    const removed = prev.filter((id) => !currentIds.includes(id));
+    if (added.length === 0 && removed.length === 0) return;
+    setSelectedModuleIds((cur) => {
+      const next = new Set(cur);
+      added.forEach((id) => next.add(id));
+      removed.forEach((id) => next.delete(id));
+      return next;
+    });
+    prevIdsRef.current = currentIds;
+  }, [modules]);
+
+  // 선택된 모듈만 표에 노출한다.
+  const visibleModules = modules.filter((m) => selectedModuleIds.has(m.id));
+
   function run(action: () => Promise<ActionResult>) {
     setError(null);
     startTransition(async () => {
@@ -171,7 +198,7 @@ export function NodeEditor({ projectId, modules }: Props) {
     return null; // 삭제된 경우
   })();
 
-  const rows = buildRows(modules);
+  const rows = buildRows(visibleModules);
 
   const addBtn = (label: string, onClick: () => void) => (
     <button
@@ -190,7 +217,14 @@ export function NodeEditor({ projectId, modules }: Props) {
 
   return (
     <div>
-      <div className="mb-3">
+      <div className="mb-3 flex items-center gap-3">
+        {modules.length > 0 && (
+          <ModuleFilter
+            modules={modules.map((m) => ({ id: m.id, name: m.name }))}
+            selected={selectedModuleIds}
+            onChange={setSelectedModuleIds}
+          />
+        )}
         {addBtn("+ 새 모듈", () =>
           run(() => createModule(projectId, "새 모듈", "")),
         )}
@@ -210,6 +244,10 @@ export function NodeEditor({ projectId, modules }: Props) {
       {modules.length === 0 ? (
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           모듈이 없습니다. “+ 새 모듈”로 시작하세요.
+        </p>
+      ) : visibleModules.length === 0 ? (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          선택된 모듈이 없습니다. 상단 필터에서 모듈을 선택하세요.
         </p>
       ) : (
         <table className="w-full border-collapse border border-zinc-300 text-sm dark:border-zinc-700">
