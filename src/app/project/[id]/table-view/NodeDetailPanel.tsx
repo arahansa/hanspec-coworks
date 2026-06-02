@@ -61,7 +61,26 @@ export function NodeDetailPanel({
   const isFeature = node.level === "FEATURE";
 
   return (
-    <aside className="w-80 shrink-0 border-l border-zinc-200 pl-5 dark:border-zinc-800">
+    <>
+      {/* 좁은 화면(lg 미만)에서만 보이는 딤 백드롭. 클릭 시 닫힘. */}
+      <div
+        onClick={onClose}
+        aria-hidden
+        className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+      />
+      {/*
+        넓은 화면(lg 이상): 테이블 옆에 붙는 인라인 컬럼.
+        좁은 화면(lg 미만): 우측에서 떠오르는 불투명 오버레이 드로어.
+      */}
+      <aside
+        className="
+          fixed inset-y-0 right-0 z-40 w-80 max-w-[90vw] overflow-y-auto
+          border-l border-zinc-200 bg-white p-5 shadow-2xl
+          dark:border-zinc-800 dark:bg-zinc-950
+          lg:static lg:z-auto lg:max-w-none lg:shrink-0 lg:overflow-visible
+          lg:p-0 lg:pl-5 lg:shadow-none
+        "
+      >
       <div className="mb-4 flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="rounded bg-zinc-100 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
@@ -179,6 +198,7 @@ export function NodeDetailPanel({
           />
         </div>
       )}
-    </aside>
+      </aside>
+    </>
   );
 }
