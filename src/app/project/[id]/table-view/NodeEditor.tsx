@@ -11,6 +11,7 @@ import {
   createRequirement,
   updateNode,
   deleteNode,
+  setFeatureTags,
 } from "./actions";
 import { NodeCell } from "./NodeCell";
 import { NodeDetailPanel, type DetailNode } from "./NodeDetailPanel";
@@ -25,7 +26,12 @@ type NodeBase = {
   createdAt: string; // 직렬화된 ISO 문자열
 };
 export type ReqNode = NodeBase;
-export type FeatureNode = NodeBase & { children: ReqNode[] };
+// FEATURE 전용 필드: ENDPOINT·TAG (09-feature.md)
+export type FeatureNode = NodeBase & {
+  endpoint: string | null;
+  tags: string[];
+  children: ReqNode[];
+};
 export type ModuleNode = NodeBase & { children: FeatureNode[] };
 
 type Props = { projectId: number; modules: ModuleNode[] };
@@ -36,7 +42,7 @@ type ActionResult = { ok: boolean; error?: string; nodeId?: number };
 // 없으면(undefined) 상위 행의 rowSpan에 덮여 출력하지 않는다.
 type Row = {
   moduleCell?: { id: number; name: string; rowSpan: number };
-  featureCell?: { id: number; name: string; rowSpan: number };
+  featureCell?: { id: number; name: string; rowSpan: number; endpoint: string | null };
   // 세 번째 칸(요구사항 영역)에 무엇을 그릴지
   third:
     | { kind: "req"; node: ReqNode }
@@ -83,6 +89,7 @@ function buildRows(modules: ModuleNode[]): Row[] {
         id: f.id,
         name: f.name,
         rowSpan: featureRowCount(f),
+        endpoint: f.endpoint,
       };
       const takeFeature = () => {
         const c = featurePending;
@@ -134,7 +141,13 @@ export function NodeEditor({ projectId, modules }: Props) {
     for (const m of modules) {
       if (m.id === detailId) return { ...m, level: "MODULE" };
       for (const f of m.children) {
-        if (f.id === detailId) return { ...f, level: "FEATURE" };
+        if (f.id === detailId)
+          return {
+            ...f,
+            level: "FEATURE",
+            endpoint: f.endpoint,
+            tags: f.tags,
+          };
         for (const r of f.children) {
           if (r.id === detailId) return { ...r, level: "REQUIREMENT" };
         }
@@ -245,6 +258,12 @@ export function NodeEditor({ projectId, modules }: Props) {
                             run(() => deleteNode(row.featureCell!.id))
                           }
                         />
+                        {/* ENDPOINT 정보가 있으면 노출 (09-feature.md) */}
+                        {row.featureCell.endpoint && (
+                          <p className="mt-1 truncate font-mono text-[11px] text-zinc-500 dark:text-zinc-400">
+                            {row.featureCell.endpoint}
+                          </p>
+                        )}
                       </td>
                     )}
 
@@ -319,6 +338,7 @@ export function NodeEditor({ projectId, modules }: Props) {
         {detailNode && (
           <NodeDetailPanel
             node={detailNode}
+            projectId={projectId}
             pending={pending}
             onClose={() => setDetailId(null)}
             onOpenDetail={() =>
@@ -327,6 +347,10 @@ export function NodeEditor({ projectId, modules }: Props) {
             onSaveDescription={(description) =>
               run(() => updateNode(detailNode.id, { description }))
             }
+            onSaveEndpoint={(endpoint) =>
+              run(() => updateNode(detailNode.id, { endpoint }))
+            }
+            onSaveTags={(tags) => run(() => setFeatureTags(detailNode.id, tags))}
           />
         )}
       </div>

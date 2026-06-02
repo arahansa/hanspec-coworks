@@ -51,6 +51,7 @@ model Project {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   nodes       Node[]
+  tags        Tag[]
 }
 
 /// 노드 레벨. 1단계 편집기는 MODULE만 다룬다.
@@ -76,6 +77,7 @@ model Node {
   level       NodeLevel
   description String?    @db.Text
   status      NodeStatus @default(DRAFT)
+  endpoint    String?    @db.VarChar(255) // FEATURE의 API 엔드포인트. (09-feature.md)
   parentId    Int? // self-ref. 최상위(MODULE)는 null
   projectId   Int
   version     Int        @default(1)
@@ -87,6 +89,34 @@ model Node {
   project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks     Task[]
   assignees NodeAssignee[]
+  tags      NodeTag[]
+}
+
+/// 프로젝트 단위로 관리되는 태그. 같은 프로젝트 내에서 이름은 유일하다.
+/// 자동완성 펼침목록은 프로젝트별로 모은다. (09-feature.md)
+model Tag {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(50)
+  projectId Int
+  createdAt DateTime @default(now())
+
+  project Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  nodes   NodeTag[]
+
+  @@unique([projectId, name])
+  @@map("tag")
+}
+
+/// 노드-태그 다대다 조인. 우선 FEATURE 노드에만 부여. (09-feature.md)
+model NodeTag {
+  nodeId Int
+  tagId  Int
+
+  node Node @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([nodeId, tagId])
+  @@map("node_tag")
 }
 
 /// 노드-담당자 다대다 조인. 우선 REQUIREMENT에만 지정. (03-node.md 추가요청2)

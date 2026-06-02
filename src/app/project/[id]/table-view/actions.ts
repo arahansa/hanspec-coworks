@@ -11,6 +11,8 @@ export type NodeActionResult =
   | { ok: false; error: string };
 
 const NAME_MAX = 255;
+const ENDPOINT_MAX = 255;
+const TAG_MAX = 50;
 
 /** 로그인 + 프로젝트 존재 확인. */
 async function assertAccess(projectId: number): Promise<string | null> {
@@ -142,7 +144,7 @@ export async function createRequirement(
  */
 export async function updateNode(
   nodeId: number,
-  patch: { name?: string; description?: string },
+  patch: { name?: string; description?: string; endpoint?: string },
 ): Promise<NodeActionResult> {
   const node = await prisma.node.findUnique({
     where: { id: nodeId },
@@ -153,7 +155,12 @@ export async function updateNode(
   const accessError = await assertAccess(node.projectId);
   if (accessError) return { ok: false, error: accessError };
 
-  const data: { name?: string; description?: string | null; version: { increment: number } } = {
+  const data: {
+    name?: string;
+    description?: string | null;
+    endpoint?: string | null;
+    version: { increment: number };
+  } = {
     version: { increment: 1 },
   };
 
@@ -164,6 +171,13 @@ export async function updateNode(
   }
   if (patch.description !== undefined) {
     data.description = patch.description.trim() || null;
+  }
+  if (patch.endpoint !== undefined) {
+    const endpoint = patch.endpoint.trim();
+    if (endpoint.length > ENDPOINT_MAX) {
+      return { ok: false, error: `ENDPOINT는 ${ENDPOINT_MAX}자 이하여야 합니다.` };
+    }
+    data.endpoint = endpoint || null;
   }
 
   await prisma.node.update({ where: { id: nodeId }, data });
@@ -187,4 +201,94 @@ export async function deleteNode(nodeId: number): Promise<NodeActionResult> {
 
   revalidatePath(`/project/${node.projectId}/table-view`);
   return { ok: true, nodeId };
+}
+
+// ── 태그 (09-feature.md) ──────────────────────────────────────────
+
+export type TagListResult =
+  | { ok: true; tags: string[] }
+  | { ok: false; error: string };
+
+export type SetTagsResult =
+  | { ok: true; tags: string[] }
+  | { ok: false; error: string };
+
+/** 자동완성용. 프로젝트에 등록된 태그 이름 목록을 반환한다. */
+export async function listProjectTags(projectId: number): Promise<TagListResult> {
+  const accessError = await assertAccess(projectId);
+  if (accessError) return { ok: false, error: accessError };
+
+  const tags = await prisma.tag.findMany({
+    where: { projectId },
+    orderBy: { name: "asc" },
+    select: { name: true },
+  });
+  return { ok: true, tags: tags.map((t) => t.name) };
+}
+
+/** 태그 이름을 정규화한다(앞뒤 공백·선행 @ 제거). */
+function normalizeTagName(raw: string): string {
+  return raw.trim().replace(/^@+/, "").trim();
+}
+
+/**
+ * FEATURE 노드의 태그를 주어진 목록으로 동기화한다.
+ * 없는 태그는 프로젝트에 새로 만들고, 빠진 태그 연결은 끊는다.
+ * 태그 마스터(Tag) 자체는 다른 노드가 참조할 수 있으므로 삭제하지 않는다.
+ */
+export async function setFeatureTags(
+  nodeId: number,
+  tagNames: string[],
+): Promise<SetTagsResult> {
+  const node = await prisma.node.findUnique({
+    where: { id: nodeId },
+    select: { id: true, level: true, projectId: true },
+  });
+  if (!node) return { ok: false, error: "존재하지 않는 노드입니다." };
+  if (node.level !== "FEATURE") {
+    return { ok: false, error: "태그는 기능(FEATURE)에만 부여할 수 있습니다." };
+  }
+
+  const accessError = await assertAccess(node.projectId);
+  if (accessError) return { ok: false, error: accessError };
+
+  // 정규화 + 중복 제거(대소문자 무시). 표시는 처음 입력된 형태를 유지한다.
+  const seen = new Map<string, string>();
+  for (const raw of tagNames) {
+    const name = normalizeTagName(raw);
+    if (!name) continue;
+    if (name.length > TAG_MAX) {
+      return { ok: false, error: `태그는 ${TAG_MAX}자 이하여야 합니다.` };
+    }
+    const key = name.toLowerCase();
+    if (!seen.has(key)) seen.set(key, name);
+  }
+  const names = [...seen.values()];
+
+  await prisma.$transaction(async (tx) => {
+    // 없는 태그는 프로젝트 스코프로 생성(있으면 무시)하고 id를 모은다.
+    const tagIds: number[] = [];
+    for (const name of names) {
+      const tag = await tx.tag.upsert({
+        where: { projectId_name: { projectId: node.projectId, name } },
+        update: {},
+        create: { projectId: node.projectId, name },
+        select: { id: true },
+      });
+      tagIds.push(tag.id);
+    }
+    // 노드-태그 연결을 목록에 맞춰 재설정한다.
+    await tx.nodeTag.deleteMany({
+      where: { nodeId, tagId: { notIn: tagIds.length ? tagIds : [-1] } },
+    });
+    if (tagIds.length) {
+      await tx.nodeTag.createMany({
+        data: tagIds.map((tagId) => ({ nodeId, tagId })),
+        skipDuplicates: true,
+      });
+    }
+  });
+
+  revalidatePath(`/project/${node.projectId}/table-view`);
+  return { ok: true, tags: names };
 }

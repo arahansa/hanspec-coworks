@@ -46,6 +46,12 @@ export default async function ProjectTableViewPage({
         orderBy: { createdAt: "asc" },
         select: {
           ...detail,
+          // FEATURE 전용 필드: ENDPOINT·TAG (09-feature.md)
+          endpoint: true,
+          tags: {
+            orderBy: { tag: { name: "asc" } },
+            select: { tag: { select: { name: true } } },
+          },
           children: {
             where: { level: "REQUIREMENT" },
             orderBy: { createdAt: "asc" },
@@ -63,6 +69,8 @@ export default async function ProjectTableViewPage({
     children: m.children.map((f) => ({
       ...f,
       createdAt: f.createdAt.toISOString(),
+      // NodeTag[] → 태그 이름 문자열 배열로 평탄화
+      tags: f.tags.map((nt) => nt.tag.name),
       children: f.children.map((r) => ({
         ...r,
         createdAt: r.createdAt.toISOString(),
