@@ -6,21 +6,6 @@ type DbStatus =
   | { ok: true; dbTime: Date }
   | { ok: false; error: string };
 
-// DATABASE_URL에서 비밀번호 등 민감 정보를 가리고 host/port/db만 노출한다.
-function describeDbUrl(raw: string | undefined): string {
-  if (!raw) return "(설정되지 않음)";
-  try {
-    const url = new URL(raw);
-    const user = url.username ? `${url.username}:***@` : "";
-    const port = url.port ? `:${url.port}` : "";
-    const db = url.pathname.replace(/^\//, "") || "(default)";
-    return `${url.protocol}//${user}${url.hostname}${port}/${db}`;
-  } catch {
-    // URL 파싱 실패 시 비밀번호 패턴만 마스킹
-    return raw.replace(/(:)([^:@/]+)(@)/, "$1***$3");
-  }
-}
-
 async function checkDb(): Promise<DbStatus> {
   try {
     const rows = await prisma.$queryRaw<{ now: Date }[]>`SELECT NOW() as now`;
@@ -35,7 +20,6 @@ async function checkDb(): Promise<DbStatus> {
 
 export default async function Home() {
   const status = await checkDb();
-  const dbUrl = describeDbUrl(process.env.DATABASE_URL);
 
   return (
     <div className="flex flex-1 items-center justify-center p-8">
@@ -72,12 +56,6 @@ export default async function Home() {
                 <dt>DB 시간</dt>
                 <dd className="font-mono text-xs">
                   {status.dbTime.toISOString()}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="shrink-0">DB URL</dt>
-                <dd className="break-all text-right font-mono text-xs">
-                  {dbUrl}
                 </dd>
               </div>
             </dl>
