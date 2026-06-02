@@ -52,6 +52,7 @@ model Project {
   updatedAt   DateTime @updatedAt
   nodes       Node[]
   tags        Tag[]
+  environments Environment[]
 }
 
 /// 노드 레벨. 1단계 편집기는 MODULE만 다룬다.
@@ -117,6 +118,21 @@ model NodeTag {
 
   @@id([nodeId, tagId])
   @@map("node_tag")
+}
+
+/// 프로젝트별 환경변수. 저장소 위치 등을 기록한다. (07-environment.md)
+/// .env에서 같은 이름으로 오버라이딩 가능(해석은 차후 과제).
+/// 노드 설명의 `{{필드명}}`을 환경변수로 인식(치환은 차후 과제).
+model Environment {
+  id        Int    @id @default(autoincrement())
+  name      String @db.VarChar(50) // 필드명
+  value     String @db.VarChar(255) // 변수값
+  projectId Int
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, name])
+  @@map("environment")
 }
 
 /// 노드-담당자 다대다 조인. 우선 REQUIREMENT에만 지정. (03-node.md 추가요청2)
