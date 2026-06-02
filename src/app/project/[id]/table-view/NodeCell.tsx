@@ -5,7 +5,8 @@ import { useState } from "react";
 
 type Props = {
   value: string;
-  level: "MODULE" | "FEATURE" | "REQUIREMENT";
+  /** 노드 레벨. 현재 셀 표시에는 사용하지 않으나 호출부 호환을 위해 유지. */
+  level?: "MODULE" | "FEATURE" | "REQUIREMENT";
   pending: boolean;
   /** 상세 패널에서 현재 열려 있는 노드인지(강조 표시). */
   active?: boolean;
@@ -16,16 +17,9 @@ type Props = {
   onDelete: () => void;
 };
 
-const BADGE: Record<Props["level"], { short: string; cls: string }> = {
-  MODULE: { short: "M", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400" },
-  FEATURE: { short: "F", cls: "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400" },
-  REQUIREMENT: { short: "R", cls: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400" },
-};
-
 /** 한 노드의 이름 셀. 클릭/포커스로 편집, blur 시 변경분 자동 저장. */
 export function NodeCell({
   value,
-  level,
   pending,
   active = false,
   onCommit,
@@ -33,7 +27,6 @@ export function NodeCell({
   onDelete,
 }: Props) {
   const [draft, setDraft] = useState(value);
-  const badge = BADGE[level];
 
   function commit() {
     const next = draft.trim();
@@ -47,11 +40,6 @@ export function NodeCell({
         active ? "bg-blue-50 dark:bg-blue-950/30" : ""
       }`}
     >
-      <span
-        className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold ${badge.cls}`}
-      >
-        {badge.short}
-      </span>
       <input
         value={draft}
         disabled={pending}
