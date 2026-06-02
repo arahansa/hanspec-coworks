@@ -41,6 +41,8 @@ export default async function ProjectTableViewPage({
     orderBy: { createdAt: "asc" },
     select: {
       ...detail,
+      // MODULE도 ENDPOINT를 가질 수 있다. (09-feature.md)
+      endpoint: true,
       children: {
         where: { level: "FEATURE" },
         orderBy: { createdAt: "asc" },

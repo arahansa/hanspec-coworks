@@ -42,7 +42,10 @@ export type FeatureNode = NodeBase & {
   tags: string[];
   children: ReqNode[];
 };
-export type ModuleNode = NodeBase & { children: FeatureNode[] };
+export type ModuleNode = NodeBase & {
+  endpoint: string | null; // MODULE도 ENDPOINT 가능 (09-feature.md)
+  children: FeatureNode[];
+};
 
 type Props = { projectId: number; modules: ModuleNode[] };
 type ActionResult = { ok: boolean; error?: string; nodeId?: number };
@@ -51,7 +54,7 @@ type ActionResult = { ok: boolean; error?: string; nodeId?: number };
 // moduleCell / featureCell은 그 셀을 "이 행에서 출력하고 rowSpan을 건다"는 의미.
 // 없으면(undefined) 상위 행의 rowSpan에 덮여 출력하지 않는다.
 type Row = {
-  moduleCell?: { id: number; name: string; rowSpan: number };
+  moduleCell?: { id: number; name: string; rowSpan: number; endpoint: string | null };
   featureCell?: { id: number; name: string; rowSpan: number; endpoint: string | null };
   // 세 번째 칸(요구사항 영역)에 무엇을 그릴지
   third:
@@ -81,6 +84,7 @@ function buildRows(modules: ModuleNode[]): Row[] {
       id: m.id,
       name: m.name,
       rowSpan: moduleRowCount(m),
+      endpoint: m.endpoint,
     };
     const takeModule = () => {
       const c = modulePending;
@@ -149,7 +153,8 @@ export function NodeEditor({ projectId, modules }: Props) {
   const detailNode: DetailNode | null = (() => {
     if (detailId === null) return null;
     for (const m of modules) {
-      if (m.id === detailId) return { ...m, level: "MODULE" };
+      if (m.id === detailId)
+        return { ...m, level: "MODULE", endpoint: m.endpoint };
       for (const f of m.children) {
         if (f.id === detailId)
           return {
@@ -240,6 +245,12 @@ export function NodeEditor({ projectId, modules }: Props) {
                         run(() => deleteNode(row.moduleCell!.id))
                       }
                     />
+                    {/* ENDPOINT 정보가 있으면 노출 (09-feature.md) */}
+                    {row.moduleCell.endpoint && (
+                      <p className="mt-1 truncate font-mono text-[11px] text-zinc-500 dark:text-zinc-400">
+                        {row.moduleCell.endpoint}
+                      </p>
+                    )}
                   </td>
                 )}
 
