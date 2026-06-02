@@ -48,15 +48,49 @@ async function requireRequirementNode(
   return { ok: true, node: { id: node.id, projectId: node.projectId } };
 }
 
+const TASK_NAME_MAX = 50;
+const TASK_ENDPOINT_MAX = 255;
+
+/** Task의 name(컴포넌트 이름)·endpoint(경로)를 검증·정규화한다. (06-task.md) */
+function normalizeTaskFields(
+  name?: string,
+  endpoint?: string,
+): { ok: true; name: string | null; endpoint: string | null } | { ok: false; error: string } {
+  let n: string | null = null;
+  let e: string | null = null;
+  if (name !== undefined) {
+    const t = name.trim();
+    if (t.length > TASK_NAME_MAX) {
+      return { ok: false, error: `이름은 ${TASK_NAME_MAX}자 이하여야 합니다.` };
+    }
+    n = t || null;
+  }
+  if (endpoint !== undefined) {
+    const t = endpoint.trim();
+    if (t.length > TASK_ENDPOINT_MAX) {
+      return { ok: false, error: `Endpoint는 ${TASK_ENDPOINT_MAX}자 이하여야 합니다.` };
+    }
+    e = t || null;
+  }
+  return { ok: true, name: n, endpoint: e };
+}
+
+export type TaskFields = {
+  description: string;
+  progress: number;
+  name?: string;
+  endpoint?: string;
+};
+
 /**
  * REQUIREMENT 노드에 Task를 생성한다.
  * - 로그인 검증, 노드 존재·REQUIREMENT 검증.
  * - description 필수, progress는 0~100 범위(기본 0).
+ * - name(컴포넌트 이름)·endpoint(경로)는 선택. (06-task.md 추가요청)
  */
 export async function createTask(
   nodeId: number,
-  description: string,
-  progress: number,
+  fields: TaskFields,
 ): Promise<TaskActionResult> {
   const member = await getCurrentMember();
   if (!member) redirect("/signin");
@@ -70,19 +104,68 @@ export async function createTask(
     return { ok: false, error: "Task는 요구사항(REQUIREMENT) 하위에만 만들 수 있습니다." };
   }
 
-  const desc = description.trim();
+  const desc = fields.description.trim();
   if (!desc) return { ok: false, error: "작업 설명을 입력해 주세요." };
 
-  const p = Number.isFinite(progress) ? Math.trunc(progress) : 0;
+  const p = Number.isFinite(fields.progress) ? Math.trunc(fields.progress) : 0;
   if (p < 0 || p > 100) return { ok: false, error: "진행도는 0~100 사이여야 합니다." };
 
+  const norm = normalizeTaskFields(fields.name, fields.endpoint);
+  if (!norm.ok) return { ok: false, error: norm.error };
+
   const task = await prisma.task.create({
-    data: { nodeId: node.id, description: desc, progress: p },
+    data: {
+      nodeId: node.id,
+      description: desc,
+      progress: p,
+      name: norm.name,
+      endpoint: norm.endpoint,
+    },
     select: { id: true },
   });
 
   revalidatePath(`/project/${node.projectId}/node/${node.id}`);
   return { ok: true, taskId: task.id };
+}
+
+/**
+ * 기존 Task를 수정한다(description·progress·name·endpoint).
+ * - 로그인 검증, Task 존재 검증.
+ */
+export async function updateTask(
+  taskId: number,
+  fields: TaskFields,
+): Promise<TaskActionResult> {
+  const member = await getCurrentMember();
+  if (!member) redirect("/signin");
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { id: true, node: { select: { id: true, projectId: true } } },
+  });
+  if (!task) return { ok: false, error: "존재하지 않는 Task입니다." };
+
+  const desc = fields.description.trim();
+  if (!desc) return { ok: false, error: "작업 설명을 입력해 주세요." };
+
+  const p = Number.isFinite(fields.progress) ? Math.trunc(fields.progress) : 0;
+  if (p < 0 || p > 100) return { ok: false, error: "진행도는 0~100 사이여야 합니다." };
+
+  const norm = normalizeTaskFields(fields.name, fields.endpoint);
+  if (!norm.ok) return { ok: false, error: norm.error };
+
+  await prisma.task.update({
+    where: { id: taskId },
+    data: {
+      description: desc,
+      progress: p,
+      name: norm.name,
+      endpoint: norm.endpoint,
+    },
+  });
+
+  revalidatePath(`/project/${task.node.projectId}/node/${task.node.id}`);
+  return { ok: true, taskId };
 }
 
 /**
@@ -188,4 +271,30 @@ export async function removeAssignee(
 
   revalidatePath(`/project/${check.node.projectId}/node/${check.node.id}`);
   return { ok: true };
+}
+
+export type EnvNamesResult =
+  | { ok: true; names: string[] }
+  | { ok: false; error: string };
+
+/**
+ * 노드가 속한 프로젝트의 환경변수 이름 목록을 반환한다.
+ * Task의 endpoint 입력에서 `{{` 자동완성에 사용한다. (06-task.md)
+ */
+export async function listNodeEnvNames(nodeId: number): Promise<EnvNamesResult> {
+  const member = await getCurrentMember();
+  if (!member) redirect("/signin");
+
+  const node = await prisma.node.findUnique({
+    where: { id: nodeId },
+    select: { projectId: true },
+  });
+  if (!node) return { ok: false, error: "존재하지 않는 노드입니다." };
+
+  const envs = await prisma.environment.findMany({
+    where: { projectId: node.projectId },
+    orderBy: { name: "asc" },
+    select: { name: true },
+  });
+  return { ok: true, names: envs.map((e) => e.name) };
 }

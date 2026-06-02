@@ -35,10 +35,23 @@ export default async function RequirementDetailPage({
       version: true,
       status: true,
       projectId: true,
-      project: { select: { name: true } },
+      project: {
+        select: {
+          name: true,
+          // Task endpoint {{}} 자동완성용 환경변수 이름. (06-task.md)
+          environments: { orderBy: { name: "asc" }, select: { name: true } },
+        },
+      },
       tasks: {
         orderBy: { createdAt: "asc" },
-        select: { id: true, description: true, progress: true, createdAt: true },
+        select: {
+          id: true,
+          description: true,
+          progress: true,
+          name: true,
+          endpoint: true,
+          createdAt: true,
+        },
       },
       assignees: {
         orderBy: { assignedAt: "asc" },
@@ -68,8 +81,12 @@ export default async function RequirementDetailPage({
     id: t.id,
     description: t.description,
     progress: t.progress,
+    name: t.name,
+    endpoint: t.endpoint,
     createdAt: t.createdAt.toISOString(),
   }));
+
+  const envNames = node.project.environments.map((e) => e.name);
 
   const assignees: AssigneeItem[] = node.assignees.map((a) => ({
     id: a.member.id,
@@ -96,7 +113,7 @@ export default async function RequirementDetailPage({
 
       <StatusSection nodeId={node.id} status={node.status} />
       <AssigneeSection nodeId={node.id} assignees={assignees} />
-      <TaskSection nodeId={node.id} tasks={tasks} />
+      <TaskSection nodeId={node.id} tasks={tasks} envNames={envNames} />
     </div>
   );
 }

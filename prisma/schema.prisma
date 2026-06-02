@@ -170,6 +170,8 @@ model Task {
   id          Int      @id @default(autoincrement())
   progress    Int      @default(0) // 진행도 (0~100)
   description String   @db.Text
+  name        String?  @db.VarChar(50) // 컴포넌트 이름 등. (06-task.md 추가요청)
+  endpoint    String?  @db.VarChar(255) // 컴포넌트 경로/Endpoint. {{환경변수}} 사용 가능. (06-task.md)
   nodeId      Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
