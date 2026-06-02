@@ -7,6 +7,7 @@ import { getCurrentMember } from "@/lib/auth";
 import { TaskSection, type TaskItem } from "./TaskSection";
 import { StatusSection } from "./StatusSection";
 import { AssigneeSection, type AssigneeItem } from "./AssigneeSection";
+import { DescriptionSection } from "./DescriptionSection";
 
 export const dynamic = "force-dynamic";
 
@@ -91,11 +92,7 @@ export default async function RequirementDetailPage({
         #{node.id} · v{node.version}
       </p>
 
-      {node.description && (
-        <p className="mt-4 whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">
-          {node.description}
-        </p>
-      )}
+      <DescriptionSection nodeId={node.id} description={node.description} />
 
       <StatusSection nodeId={node.id} status={node.status} />
       <AssigneeSection nodeId={node.id} assignees={assignees} />

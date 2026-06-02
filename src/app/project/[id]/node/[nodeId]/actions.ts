@@ -110,6 +110,32 @@ export async function updateNodeStatus(
 }
 
 /**
+ * REQUIREMENT 노드의 설명(description)을 변경한다.
+ * - 설명 수정은 도메인상 version+1 대상이다.
+ * - 빈 문자열은 null로 저장한다.
+ */
+export async function updateNodeDescription(
+  nodeId: number,
+  description: string,
+): Promise<NodeActionResult> {
+  const check = await requireRequirementNode(nodeId);
+  if (!check.ok) return check.result;
+
+  await prisma.node.update({
+    where: { id: check.node.id },
+    data: {
+      description: description.trim() || null,
+      version: { increment: 1 },
+    },
+  });
+
+  revalidatePath(`/project/${check.node.projectId}/node/${check.node.id}`);
+  // 테이블뷰의 설명/표시도 최신화되도록 함께 무효화.
+  revalidatePath(`/project/${check.node.projectId}/table-view`);
+  return { ok: true };
+}
+
+/**
  * REQUIREMENT 노드에 담당자를 추가한다. (03-node.md 추가요청2)
  * - 멤버 존재 검증. 복합키 upsert로 중복 지정을 멱등 처리한다.
  */
