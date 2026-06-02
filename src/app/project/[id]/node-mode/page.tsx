@@ -73,10 +73,10 @@ export default async function ProjectNodeModePage({
   return (
     <div className="p-8">
       <p className="font-mono text-xs uppercase tracking-widest text-zinc-400 dark:text-zinc-600">
-        {project.name} · NodeMode
+        {project.name} · TableView
       </p>
       <h1 className="mt-2 mb-8 text-2xl font-semibold tracking-tight text-black dark:text-zinc-50">
-        NodeMode
+        TableView
       </h1>
 
       <NodeEditor projectId={projectId} modules={serialized} />

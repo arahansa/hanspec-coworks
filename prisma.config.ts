@@ -9,6 +9,8 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // 마이그레이션(DDL)은 pgbouncer를 거치지 않는 direct 연결을 사용한다.
+    // Neon: DATABASE_URL_UNPOOLED(=-pooler 없는 호스트). 로컬엔 없으므로 DATABASE_URL로 폴백.
+    url: process.env["DATABASE_URL_UNPOOLED"] ?? process.env["DATABASE_URL"],
   },
 });
