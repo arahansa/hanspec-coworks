@@ -15,6 +15,7 @@ import {
 } from "./actions";
 import { NodeCell } from "./NodeCell";
 import { NodeDetailPanel, type DetailNode } from "./NodeDetailPanel";
+import type { NodeStatus } from "@/generated/prisma/client";
 
 type Level = "MODULE" | "FEATURE" | "REQUIREMENT";
 
@@ -25,7 +26,12 @@ type NodeBase = {
   version: number;
   createdAt: string; // 직렬화된 ISO 문자열
 };
-export type ReqNode = NodeBase;
+// REQUIREMENT 전용 필드: 상태·담당자 (03-node.md 추가요청1·2)
+export type AssigneeItem = { id: number; username: string };
+export type ReqNode = NodeBase & {
+  status: NodeStatus;
+  assignees: AssigneeItem[];
+};
 // FEATURE 전용 필드: ENDPOINT·TAG (09-feature.md)
 export type FeatureNode = NodeBase & {
   endpoint: string | null;

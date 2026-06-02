@@ -4,7 +4,13 @@
 "use client";
 
 import { useState } from "react";
+import type { NodeStatus } from "@/generated/prisma/client";
 import { TagInput } from "./TagInput";
+import { StatusSection } from "@/app/project/[id]/node/[nodeId]/StatusSection";
+import {
+  AssigneeSection,
+  type AssigneeItem,
+} from "@/app/project/[id]/node/[nodeId]/AssigneeSection";
 
 export type DetailNode = {
   id: number;
@@ -16,6 +22,9 @@ export type DetailNode = {
   // FEATURE에만 존재. 다른 레벨에서는 undefined.
   endpoint?: string | null;
   tags?: string[];
+  // REQUIREMENT에만 존재. 다른 레벨에서는 undefined.
+  status?: NodeStatus;
+  assignees?: AssigneeItem[];
 };
 
 const LEVEL_LABEL: Record<DetailNode["level"], string> = {
@@ -59,6 +68,7 @@ export function NodeDetailPanel({
     endpointDraft.trim() !== (node.endpoint ?? "").trim();
 
   const isFeature = node.level === "FEATURE";
+  const isRequirement = node.level === "REQUIREMENT";
 
   return (
     <>
@@ -197,6 +207,14 @@ export function NodeDetailPanel({
             onChange={onSaveTags}
           />
         </div>
+      )}
+
+      {/* REQUIREMENT 전용: 상태 변경·담당자 지정 (03-node.md 추가요청1·2) */}
+      {isRequirement && node.status !== undefined && (
+        <StatusSection nodeId={node.id} status={node.status} />
+      )}
+      {isRequirement && (
+        <AssigneeSection nodeId={node.id} assignees={node.assignees ?? []} />
       )}
       </aside>
     </>
