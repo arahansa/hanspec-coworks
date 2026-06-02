@@ -4,7 +4,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getCurrentMember } from "@/lib/auth";
+import { getCurrentMemberId } from "@/lib/auth";
 
 export type NodeActionResult =
   | { ok: true; nodeId: number }
@@ -14,16 +14,14 @@ const NAME_MAX = 255;
 const ENDPOINT_MAX = 255;
 const TAG_MAX = 50;
 
-/** 로그인 + 프로젝트 존재 확인. */
-async function assertAccess(projectId: number): Promise<string | null> {
-  const member = await getCurrentMember();
-  if (!member) redirect("/signin");
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: { id: true },
-  });
-  if (!project) return "존재하지 않는 프로젝트입니다.";
-  return null;
+/**
+ * 로그인 여부만 세션 쿠키로 확인한다(DB 왕복 없음).
+ * 프로젝트/노드 존재는 각 액션이 이미 조회한 데이터나 FK 제약으로 보장되므로
+ * 여기서 별도 조회하지 않는다(불필요한 왕복 제거).
+ */
+async function assertAuthenticated(): Promise<void> {
+  const memberId = await getCurrentMemberId();
+  if (memberId === null) redirect("/signin");
 }
 
 function validateName(name: string): string | null {
@@ -38,22 +36,30 @@ export async function createModule(
   name: string,
   description: string,
 ): Promise<NodeActionResult> {
-  const accessError = await assertAccess(projectId);
-  if (accessError) return { ok: false, error: accessError };
+  await assertAuthenticated();
 
   const nameError = validateName(name);
   if (nameError) return { ok: false, error: nameError };
 
-  const node = await prisma.node.create({
-    data: {
-      name: name.trim(),
-      description: description.trim() || null,
-      level: "MODULE",
-      parentId: null,
-      projectId,
-    },
-    select: { id: true },
-  });
+  // 존재하지 않는 projectId면 FK 위반(P2003)으로 실패 → 친절한 에러로 변환.
+  let node: { id: number };
+  try {
+    node = await prisma.node.create({
+      data: {
+        name: name.trim(),
+        description: description.trim() || null,
+        level: "MODULE",
+        parentId: null,
+        projectId,
+      },
+      select: { id: true },
+    });
+  } catch (e) {
+    if (e instanceof Error && "code" in e && (e as { code?: string }).code === "P2003") {
+      return { ok: false, error: "존재하지 않는 프로젝트입니다." };
+    }
+    throw e;
+  }
 
   revalidatePath(`/project/${projectId}/table-view`);
   return { ok: true, nodeId: node.id };
@@ -68,17 +74,18 @@ export async function createFeature(
   name: string,
   description: string,
 ): Promise<NodeActionResult> {
-  const parent = await prisma.node.findUnique({
-    where: { id: parentModuleId },
-    select: { id: true, level: true, projectId: true },
-  });
+  // 인증(세션, DB 왕복 없음)과 부모 조회는 독립이므로 병렬 실행.
+  const [, parent] = await Promise.all([
+    assertAuthenticated(),
+    prisma.node.findUnique({
+      where: { id: parentModuleId },
+      select: { id: true, level: true, projectId: true },
+    }),
+  ]);
   if (!parent) return { ok: false, error: "존재하지 않는 모듈입니다." };
   if (parent.level !== "MODULE") {
     return { ok: false, error: "FEATURE는 MODULE 하위에만 만들 수 있습니다." };
   }
-
-  const accessError = await assertAccess(parent.projectId);
-  if (accessError) return { ok: false, error: accessError };
 
   const nameError = validateName(name);
   if (nameError) return { ok: false, error: nameError };
@@ -108,17 +115,18 @@ export async function createRequirement(
   name: string,
   description: string,
 ): Promise<NodeActionResult> {
-  const parent = await prisma.node.findUnique({
-    where: { id: parentFeatureId },
-    select: { id: true, level: true, projectId: true },
-  });
+  // 인증(세션, DB 왕복 없음)과 부모 조회는 독립이므로 병렬 실행.
+  const [, parent] = await Promise.all([
+    assertAuthenticated(),
+    prisma.node.findUnique({
+      where: { id: parentFeatureId },
+      select: { id: true, level: true, projectId: true },
+    }),
+  ]);
   if (!parent) return { ok: false, error: "존재하지 않는 기능입니다." };
   if (parent.level !== "FEATURE") {
     return { ok: false, error: "REQUIREMENT는 FEATURE 하위에만 만들 수 있습니다." };
   }
-
-  const accessError = await assertAccess(parent.projectId);
-  if (accessError) return { ok: false, error: accessError };
 
   const nameError = validateName(name);
   if (nameError) return { ok: false, error: nameError };
@@ -146,14 +154,14 @@ export async function updateNode(
   nodeId: number,
   patch: { name?: string; description?: string; endpoint?: string },
 ): Promise<NodeActionResult> {
-  const node = await prisma.node.findUnique({
-    where: { id: nodeId },
-    select: { id: true, projectId: true },
-  });
+  const [, node] = await Promise.all([
+    assertAuthenticated(),
+    prisma.node.findUnique({
+      where: { id: nodeId },
+      select: { id: true, projectId: true },
+    }),
+  ]);
   if (!node) return { ok: false, error: "존재하지 않는 노드입니다." };
-
-  const accessError = await assertAccess(node.projectId);
-  if (accessError) return { ok: false, error: accessError };
 
   const data: {
     name?: string;
@@ -188,14 +196,14 @@ export async function updateNode(
 
 /** 노드(MODULE/FEATURE 공통) 삭제. 하위 노드는 Cascade로 함께 삭제된다. */
 export async function deleteNode(nodeId: number): Promise<NodeActionResult> {
-  const node = await prisma.node.findUnique({
-    where: { id: nodeId },
-    select: { id: true, projectId: true },
-  });
+  const [, node] = await Promise.all([
+    assertAuthenticated(),
+    prisma.node.findUnique({
+      where: { id: nodeId },
+      select: { id: true, projectId: true },
+    }),
+  ]);
   if (!node) return { ok: false, error: "존재하지 않는 노드입니다." };
-
-  const accessError = await assertAccess(node.projectId);
-  if (accessError) return { ok: false, error: accessError };
 
   await prisma.node.delete({ where: { id: nodeId } });
 
@@ -215,8 +223,7 @@ export type SetTagsResult =
 
 /** 자동완성용. 프로젝트에 등록된 태그 이름 목록을 반환한다. */
 export async function listProjectTags(projectId: number): Promise<TagListResult> {
-  const accessError = await assertAccess(projectId);
-  if (accessError) return { ok: false, error: accessError };
+  await assertAuthenticated();
 
   const tags = await prisma.tag.findMany({
     where: { projectId },
@@ -240,17 +247,17 @@ export async function setFeatureTags(
   nodeId: number,
   tagNames: string[],
 ): Promise<SetTagsResult> {
-  const node = await prisma.node.findUnique({
-    where: { id: nodeId },
-    select: { id: true, level: true, projectId: true },
-  });
+  const [, node] = await Promise.all([
+    assertAuthenticated(),
+    prisma.node.findUnique({
+      where: { id: nodeId },
+      select: { id: true, level: true, projectId: true },
+    }),
+  ]);
   if (!node) return { ok: false, error: "존재하지 않는 노드입니다." };
   if (node.level !== "FEATURE") {
     return { ok: false, error: "태그는 기능(FEATURE)에만 부여할 수 있습니다." };
   }
-
-  const accessError = await assertAccess(node.projectId);
-  if (accessError) return { ok: false, error: accessError };
 
   // 정규화 + 중복 제거(대소문자 무시). 표시는 처음 입력된 형태를 유지한다.
   const seen = new Map<string, string>();

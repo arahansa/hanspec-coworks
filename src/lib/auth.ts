@@ -90,6 +90,17 @@ function parseSession(value: string | undefined): number | null {
 }
 
 /**
+ * 세션 쿠키만으로 로그인 멤버 id를 반환한다(DB 조회 없음).
+ * 멤버 상세가 필요 없고 "로그인 여부/누구인지"만 확인하면 충분한
+ * 경로(예: 노드 생성 액션)에서 불필요한 DB 왕복을 피하기 위해 사용한다.
+ * 세션이 유효하지 않으면 null.
+ */
+export async function getCurrentMemberId(): Promise<number | null> {
+  const cookieStore = await cookies();
+  return parseSession(cookieStore.get(SESSION_COOKIE)?.value);
+}
+
+/**
  * 현재 로그인한 멤버를 반환한다. 비로그인이거나 세션이 유효하지 않으면 null.
  * 비밀번호 필드는 제외하고 반환한다.
  */
