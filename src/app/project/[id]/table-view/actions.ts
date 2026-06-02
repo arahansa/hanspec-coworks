@@ -53,7 +53,7 @@ export async function createModule(
     select: { id: true },
   });
 
-  revalidatePath(`/project/${projectId}/node-mode`);
+  revalidatePath(`/project/${projectId}/table-view`);
   return { ok: true, nodeId: node.id };
 }
 
@@ -92,7 +92,7 @@ export async function createFeature(
     select: { id: true },
   });
 
-  revalidatePath(`/project/${parent.projectId}/node-mode`);
+  revalidatePath(`/project/${parent.projectId}/table-view`);
   return { ok: true, nodeId: node.id };
 }
 
@@ -132,7 +132,7 @@ export async function createRequirement(
     select: { id: true },
   });
 
-  revalidatePath(`/project/${parent.projectId}/node-mode`);
+  revalidatePath(`/project/${parent.projectId}/table-view`);
   return { ok: true, nodeId: node.id };
 }
 
@@ -168,7 +168,7 @@ export async function updateNode(
 
   await prisma.node.update({ where: { id: nodeId }, data });
 
-  revalidatePath(`/project/${node.projectId}/node-mode`);
+  revalidatePath(`/project/${node.projectId}/table-view`);
   return { ok: true, nodeId };
 }
 
@@ -185,6 +185,6 @@ export async function deleteNode(nodeId: number): Promise<NodeActionResult> {
 
   await prisma.node.delete({ where: { id: nodeId } });
 
-  revalidatePath(`/project/${node.projectId}/node-mode`);
+  revalidatePath(`/project/${node.projectId}/table-view`);
   return { ok: true, nodeId };
 }

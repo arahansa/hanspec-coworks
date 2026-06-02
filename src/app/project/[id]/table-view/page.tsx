@@ -1,5 +1,5 @@
 // 참조: docs/components/02-navigation-left.md (v1.1), docs/domain/04-node.md (v1.1)
-// 선택된 프로젝트의 NodeMode 작업 화면. 1단계: MODULE 노드 편집기.
+// 선택된 프로젝트의 TableView 작업 화면. 1단계: MODULE 노드 편집기.
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMember } from "@/lib/auth";
@@ -8,7 +8,7 @@ import { NodeEditor } from "./NodeEditor";
 export const dynamic = "force-dynamic";
 
 // Next.js 16: params는 Promise로 전달된다.
-export default async function ProjectNodeModePage({
+export default async function ProjectTableViewPage({
   params,
 }: {
   params: Promise<{ id: string }>;

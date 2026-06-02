@@ -17,7 +17,7 @@ const HIDDEN_PREFIXES = ["/admin", "/signin", "/signup", "/me"];
 // 프로젝트 선택 시 좌측에 표시되는 프로젝트 내 작업 메뉴.
 // 참조: docs/components/02-navigation-left.md (v1.1)
 const PROJECT_TASK_ITEMS = [
-  { segment: "/node-mode", label: "TableView" },
+  { segment: "/table-view", label: "TableView" },
 ] as const;
 
 function selectedProjectId(pathname: string): number | null {

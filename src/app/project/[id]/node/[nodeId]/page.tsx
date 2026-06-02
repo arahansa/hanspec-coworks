@@ -48,7 +48,7 @@ export default async function RequirementDetailPage({
 
   if (!node || node.projectId !== projectId) notFound();
 
-  const backHref = `/project/${projectId}/node-mode`;
+  const backHref = `/project/${projectId}/table-view`;
 
   if (node.level !== "REQUIREMENT") {
     return (
