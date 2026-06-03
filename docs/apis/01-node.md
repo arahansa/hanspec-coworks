@@ -1,7 +1,7 @@
 ---
-version: "1.1"
+version: "1.2"
 created: "2026-06-02"
-updated: "2026-06-02"
+updated: "2026-06-04"
 author: "arahansa"
 ---
 
@@ -80,13 +80,47 @@ if (!data.ok) throw new Error(data.error);
 // data.requirement / data.feature / data.module
 ```
 
+## Task API (2026-06-04 추가)
+
+요청 사양: `kpopfandom-front/docs/apis/03-task-create-api-design.md` (호출 측 작성).
+
+### `POST /api/tasks` — REQUIREMENT 노드에 Task 생성
+
+```
+POST {HANSPEC_COWORKS_BASE_URL}/api/tasks
+Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
+Header: Content-Type: application/json
+Body: { "nodeId": 21, "description": "...", "progress": 0, "name": "...", "endpoint": "..." }
+```
+
+- 인증·권한은 `GET /api/nodes/:id`와 동일(토큰 7일, SUPER 우회 + projectMember).
+- 필드 규칙은 웹 UI `createTask`와 동일(`src/lib/task.ts` 공유).
+  - `nodeId`(필수, REQUIREMENT), `description`(필수), `progress`(0~100, 기본 0),
+    `name`(≤50, 빈값 null), `endpoint`(≤255, 빈값 null).
+- 성공: `201 { ok: true, taskId }`.
+- 에러: `400`(검증), `401`(토큰), `403`(권한), `404`(노드 없음), `422`(노드가 REQUIREMENT 아님).
+
+### `GET /api/nodes/:id/tasks` — 노드의 Task 목록
+
+```
+GET {HANSPEC_COWORKS_BASE_URL}/api/nodes/:id/tasks
+Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
+```
+
+- 응답: `{ ok: true, nodeId, tasks: [{ id, name, endpoint, description, progress }] }`.
+- 등록 후 검증/멱등 처리에 사용.
+
 ## 한계 / 차후 과제
 
 - 토큰은 현재 평문 저장. 외부 노출되므로 향후 해시 저장 권장.
 - 멤버-프로젝트 소속 관리 UI(admin)는 미구현. 현재는 전체 멤버를 백필해 둠.
 
 ## 산출 코드
-- `src/app/api/nodes/[id]/route.ts` — GET 라우트
+- `src/app/api/nodes/[id]/route.ts` — GET 노드 라우트
+- `src/app/api/tasks/route.ts` — POST Task 생성 라우트 (2026-06-04)
+- `src/app/api/nodes/[id]/tasks/route.ts` — GET Task 목록 라우트 (2026-06-04)
 - `src/lib/access-token.ts` — `authenticateByToken`
+- `src/lib/api-auth.ts` — `authenticateRequest`, `authorizeProjectAccess` (토큰 API 공통 인증/권한)
+- `src/lib/task.ts` — Task 필드 검증/정규화 (Server Action·API 공유)
 - `prisma/schema.prisma` — `ProjectMember` 소속 모델
 

@@ -1,5 +1,5 @@
 ---
-version: "1.0"
+version: "1.1"
 created: "2026-06-04"
 updated: "2026-06-04"
 author: "arahansa"
@@ -121,6 +121,53 @@ Header: Authorization: Bearer {HANSPEC_COWORKS_ACCESSTOKEN}
 > 엔드포인트 동작의 상세 구현은 [`01-node.md`](./01-node.md) 및
 > `docs/superpowers/specs/2026-06-02-node-api-design.md` 참조.
 
+### `POST /api/tasks` — REQUIREMENT 노드에 Task 생성
+
+```
+POST {HANSPEC_COWORKS_BASE_URL}/api/tasks
+Header: Authorization: Bearer {HANSPEC_COWORKS_ACCESSTOKEN}
+Header: Content-Type: application/json
+```
+
+요청 바디:
+
+```json
+{
+  "nodeId": 21,
+  "description": "비로그인 히어로 섹션 컴포넌트",
+  "progress": 0,
+  "name": "GuestHeroSection",
+  "endpoint": "app/intro/_components/GuestHeroSection.tsx"
+}
+```
+
+| 필드 | 타입 | 필수 | 제약 |
+|---|---|---|---|
+| `nodeId` | number | ✅ | 정수, **REQUIREMENT 레벨 노드** |
+| `description` | string | ✅ | trim 후 비어있지 않을 것 |
+| `progress` | number | ❌ | 정수 0~100, 기본 0 |
+| `name` | string | ❌ | trim 후 ≤ 50자, 빈 값은 null |
+| `endpoint` | string | ❌ | trim 후 ≤ 255자, 빈 값은 null |
+
+성공 응답(`201`): `{ "ok": true, "taskId": 12 }`
+
+에러: `400`(검증 실패), `401`(토큰), `403`(권한), `404`(노드 없음),
+`422`(노드가 REQUIREMENT가 아님).
+
+### `GET /api/nodes/:id/tasks` — 노드의 Task 목록 조회
+
+등록 후 검증/멱등 처리에 사용. 인증/권한은 위와 동일.
+
+```json
+{
+  "ok": true,
+  "nodeId": 21,
+  "tasks": [
+    { "id": 12, "name": "GuestHeroSection", "endpoint": "app/intro/...", "description": "...", "progress": 0 }
+  ]
+}
+```
+
 ---
 
 ## 4. 호출 코드
@@ -128,8 +175,15 @@ Header: Authorization: Bearer {HANSPEC_COWORKS_ACCESSTOKEN}
 ### curl
 
 ```bash
+# 노드 조회
 curl -H "Authorization: Bearer $HANSPEC_COWORKS_ACCESSTOKEN" \
   "$HANSPEC_COWORKS_BASE_URL/api/nodes/75"
+
+# Task 생성
+curl -X POST -H "Authorization: Bearer $HANSPEC_COWORKS_ACCESSTOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"nodeId":21,"description":"...","name":"Foo","endpoint":"app/foo/Foo.tsx"}' \
+  "$HANSPEC_COWORKS_BASE_URL/api/tasks"
 ```
 
 ### fetch (Node / TypeScript)
