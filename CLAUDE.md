@@ -23,14 +23,6 @@
 - **Node**: 24 LTS (`.nvmrc`) — Prisma 7이 20.19+/22.12+/24+ 요구
 - **패키지 매니저**: pnpm
 
-## 로컬 개발
-
-```bash
-nvm use            # .nvmrc → Node 24
-pnpm install
-pnpm dev           # http://localhost:3000
-```
-
 - 첫 페이지(`/`)가 DB 연결 상태를 표시하고, `/api/health`가 `SELECT NOW()`로 연결을 검증한다.
 - 로컬 PostgreSQL: Docker 컨테이너 `postgres-common`(postgres:15-alpine), 호스트 포트 **5433**, DB명 `coworks`.
 - 접속 정보는 `.env`의 `DATABASE_URL`. 예시는 `.env.example` 참고.
