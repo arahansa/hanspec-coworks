@@ -5,17 +5,9 @@
 // 한 번에 반환한다. 다른 프로젝트가 .env의 HANSPEC_COWORKS_ACCESSTOKEN으로 호출.
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { authenticateByToken } from "@/lib/access-token";
+import { authenticateRequest, authorizeProjectAccess } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
-
-/** Authorization: Bearer <token> 헤더에서 토큰을 추출한다. */
-function extractBearer(request: Request): string | null {
-  const header = request.headers.get("authorization");
-  if (!header) return null;
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  return match ? match[1].trim() : null;
-}
 
 type NodeSummary = {
   id: number;
@@ -37,20 +29,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   // 1) 토큰 추출·검증
-  const token = extractBearer(request);
-  if (!token) {
+  const auth = await authenticateRequest(request);
+  if (!auth.ok) {
     return NextResponse.json(
-      { ok: false, error: "Authorization Bearer 토큰이 필요합니다." },
-      { status: 401 },
+      { ok: false, error: auth.error },
+      { status: auth.status },
     );
   }
-  const memberId = await authenticateByToken(token);
-  if (memberId === null) {
-    return NextResponse.json(
-      { ok: false, error: "유효하지 않거나 만료된 토큰입니다." },
-      { status: 401 },
-    );
-  }
+  const memberId = auth.memberId;
 
   // 2) id 파싱
   const { id } = await params;
@@ -96,23 +82,12 @@ export async function GET(
   }
 
   // 4) 프로젝트 소속 검증 (SUPER 등급은 우회)
-  const member = await prisma.member.findUnique({
-    where: { id: memberId },
-    select: { grade: true },
-  });
-  if (member?.grade !== "SUPER") {
-    const membership = await prisma.projectMember.findUnique({
-      where: {
-        projectId_memberId: { projectId: node.projectId, memberId },
-      },
-      select: { memberId: true },
-    });
-    if (!membership) {
-      return NextResponse.json(
-        { ok: false, error: "이 프로젝트에 접근 권한이 없습니다." },
-        { status: 403 },
-      );
-    }
+  const access = await authorizeProjectAccess(memberId, node.projectId);
+  if (!access.ok) {
+    return NextResponse.json(
+      { ok: false, error: access.error },
+      { status: access.status },
+    );
   }
 
   // 5) level에 따라 module/feature/requirement 조립

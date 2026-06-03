@@ -9,6 +9,11 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMember } from "@/lib/auth";
 import { NodeStatus } from "@/generated/prisma/enums";
+import {
+  normalizeTaskFields,
+  validateDescription,
+  validateProgress,
+} from "@/lib/task";
 
 export type TaskActionResult =
   | { ok: true; taskId: number }
@@ -48,33 +53,6 @@ async function requireRequirementNode(
   return { ok: true, node: { id: node.id, projectId: node.projectId } };
 }
 
-const TASK_NAME_MAX = 50;
-const TASK_ENDPOINT_MAX = 255;
-
-/** Task의 name(컴포넌트 이름)·endpoint(경로)를 검증·정규화한다. (06-task.md) */
-function normalizeTaskFields(
-  name?: string,
-  endpoint?: string,
-): { ok: true; name: string | null; endpoint: string | null } | { ok: false; error: string } {
-  let n: string | null = null;
-  let e: string | null = null;
-  if (name !== undefined) {
-    const t = name.trim();
-    if (t.length > TASK_NAME_MAX) {
-      return { ok: false, error: `이름은 ${TASK_NAME_MAX}자 이하여야 합니다.` };
-    }
-    n = t || null;
-  }
-  if (endpoint !== undefined) {
-    const t = endpoint.trim();
-    if (t.length > TASK_ENDPOINT_MAX) {
-      return { ok: false, error: `Endpoint는 ${TASK_ENDPOINT_MAX}자 이하여야 합니다.` };
-    }
-    e = t || null;
-  }
-  return { ok: true, name: n, endpoint: e };
-}
-
 export type TaskFields = {
   description: string;
   progress: number;
@@ -104,11 +82,11 @@ export async function createTask(
     return { ok: false, error: "Task는 요구사항(REQUIREMENT) 하위에만 만들 수 있습니다." };
   }
 
-  const desc = fields.description.trim();
-  if (!desc) return { ok: false, error: "작업 설명을 입력해 주세요." };
+  const descCheck = validateDescription(fields.description);
+  if (!descCheck.ok) return { ok: false, error: descCheck.error };
 
-  const p = Number.isFinite(fields.progress) ? Math.trunc(fields.progress) : 0;
-  if (p < 0 || p > 100) return { ok: false, error: "진행도는 0~100 사이여야 합니다." };
+  const progressCheck = validateProgress(fields.progress);
+  if (!progressCheck.ok) return { ok: false, error: progressCheck.error };
 
   const norm = normalizeTaskFields(fields.name, fields.endpoint);
   if (!norm.ok) return { ok: false, error: norm.error };
@@ -116,8 +94,8 @@ export async function createTask(
   const task = await prisma.task.create({
     data: {
       nodeId: node.id,
-      description: desc,
-      progress: p,
+      description: descCheck.value,
+      progress: progressCheck.value,
       name: norm.name,
       endpoint: norm.endpoint,
     },
@@ -145,11 +123,11 @@ export async function updateTask(
   });
   if (!task) return { ok: false, error: "존재하지 않는 Task입니다." };
 
-  const desc = fields.description.trim();
-  if (!desc) return { ok: false, error: "작업 설명을 입력해 주세요." };
+  const descCheck = validateDescription(fields.description);
+  if (!descCheck.ok) return { ok: false, error: descCheck.error };
 
-  const p = Number.isFinite(fields.progress) ? Math.trunc(fields.progress) : 0;
-  if (p < 0 || p > 100) return { ok: false, error: "진행도는 0~100 사이여야 합니다." };
+  const progressCheck = validateProgress(fields.progress);
+  if (!progressCheck.ok) return { ok: false, error: progressCheck.error };
 
   const norm = normalizeTaskFields(fields.name, fields.endpoint);
   if (!norm.ok) return { ok: false, error: norm.error };
@@ -157,8 +135,8 @@ export async function updateTask(
   await prisma.task.update({
     where: { id: taskId },
     data: {
-      description: desc,
-      progress: p,
+      description: descCheck.value,
+      progress: progressCheck.value,
       name: norm.name,
       endpoint: norm.endpoint,
     },
