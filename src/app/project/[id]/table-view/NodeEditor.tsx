@@ -11,7 +11,7 @@ import {
   createRequirement,
   updateNode,
   deleteNode,
-  setFeatureTags,
+  setNodeTags,
 } from "./actions";
 import { NodeCell } from "./NodeCell";
 import { NodeDetailPanel, type DetailNode } from "./NodeDetailPanel";
@@ -37,6 +37,8 @@ export type ReqNode = NodeBase & {
   status: NodeStatus;
   // REQUIREMENT도 ENDPOINT 가능 (FEATURE/MODULE과 동일)
   endpoint: string | null;
+  // REQUIREMENT도 TAG 가능 (05-tag.md)
+  tags: string[];
   assignees: AssigneeItem[];
 };
 // FEATURE 전용 필드: ENDPOINT·TAG (09-feature.md)
@@ -272,7 +274,8 @@ export function NodeEditor({ projectId, modules }: Props) {
             tags: f.tags,
           };
         for (const r of f.children) {
-          if (r.id === detailId) return { ...r, level: "REQUIREMENT" };
+          if (r.id === detailId)
+            return { ...r, level: "REQUIREMENT", tags: r.tags };
         }
       }
     }
@@ -548,7 +551,7 @@ export function NodeEditor({ projectId, modules }: Props) {
             onSaveEndpoint={(endpoint) =>
               run(() => updateNode(detailNode.id, { endpoint }))
             }
-            onSaveTags={(tags) => run(() => setFeatureTags(detailNode.id, tags))}
+            onSaveTags={(tags) => run(() => setNodeTags(detailNode.id, tags))}
           />
         )}
       </div>

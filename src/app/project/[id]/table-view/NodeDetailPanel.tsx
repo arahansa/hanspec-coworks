@@ -200,8 +200,8 @@ export function NodeDetailPanel({
         </div>
       )}
 
-      {/* FEATURE 전용: TAG (09-feature.md) */}
-      {isFeature && (
+      {/* FEATURE·REQUIREMENT: TAG (05-tag.md) */}
+      {(isFeature || isRequirement) && (
         <div className="mt-6">
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
             태그
