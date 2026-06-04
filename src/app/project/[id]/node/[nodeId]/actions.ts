@@ -154,6 +154,9 @@ export async function updateNodeStatus(
   nodeId: number,
   status: NodeStatus,
 ): Promise<NodeActionResult> {
+  const member = await getCurrentMember();
+  if (!member) redirect("/signin");
+
   const check = await requireRequirementNode(nodeId);
   if (!check.ok) return check.result;
 
@@ -161,13 +164,50 @@ export async function updateNodeStatus(
     return { ok: false, error: "알 수 없는 상태입니다." };
   }
 
+  const current = await prisma.node.findUnique({
+    where: { id: check.node.id },
+    select: { status: true },
+  });
+
   await prisma.node.update({
     where: { id: check.node.id },
     data: { status },
   });
 
+  // 비DONE→DONE 전환 시 예약된 완료 알림을 발송한다. (12-complete-notification.md)
+  if (status === "DONE" && current?.status !== "DONE") {
+    await fireCompleteNotifications(check.node.id, member.id);
+  }
+
   revalidatePath(`/project/${check.node.projectId}/node/${check.node.id}`);
   return { ok: true };
+}
+
+/**
+ * triggerNode가 DONE이 될 때, 예약된 완료 알림을 실제 확인 요청으로 발송한다.
+ * 각 예약마다 targetNode(다음 요구사항)에 대한 RequestNotification을 생성한다.
+ * 참조: docs/domain/12-complete-notification.md
+ */
+async function fireCompleteNotifications(
+  triggerNodeId: number,
+  senderId: number,
+): Promise<void> {
+  const reservations = await prisma.completeNotification.findMany({
+    where: { triggerNodeId },
+    select: { targetNodeId: true, receiverId: true, groupId: true },
+  });
+  if (reservations.length === 0) return;
+
+  await prisma.requestNotification.createMany({
+    data: reservations.map((r) => ({
+      senderId,
+      receiverId: r.receiverId,
+      groupId: r.groupId,
+      nodeId: r.targetNodeId,
+    })),
+  });
+  // 수신자의 요청 알림 목록을 최신화.
+  revalidatePath("/notifications");
 }
 
 /**
@@ -300,6 +340,91 @@ export async function sendRequest(
   }
 
   revalidatePath(`/project/${check.node.projectId}/node/${check.node.id}`);
+  return { ok: true };
+}
+
+/**
+ * 완료 알림 예약을 생성한다. 참조: docs/domain/12-complete-notification.md
+ * - triggerNode(현재 요구사항)가 DONE이 되면 targetNode에 대한 확인 요청을 발송.
+ * - targetNode는 같은 기능(부모) 내의 다른 REQUIREMENT여야 한다.
+ * - target은 개인({ receiverId }) 또는 그룹({ groupId }) 중 하나.
+ */
+export async function createCompleteNotification(
+  triggerNodeId: number,
+  targetNodeId: number,
+  target: { receiverId: number } | { groupId: number },
+): Promise<NodeActionResult> {
+  const member = await getCurrentMember();
+  if (!member) redirect("/signin");
+
+  const check = await requireRequirementNode(triggerNodeId);
+  if (!check.ok) return check.result;
+
+  if (targetNodeId === triggerNodeId) {
+    return { ok: false, error: "자기 자신은 대상으로 선택할 수 없습니다." };
+  }
+
+  const [trigger, targetNode] = await Promise.all([
+    prisma.node.findUnique({
+      where: { id: triggerNodeId },
+      select: { parentId: true },
+    }),
+    prisma.node.findUnique({
+      where: { id: targetNodeId },
+      select: { level: true, parentId: true },
+    }),
+  ]);
+  if (
+    !targetNode ||
+    targetNode.level !== "REQUIREMENT" ||
+    targetNode.parentId !== trigger?.parentId
+  ) {
+    return { ok: false, error: "같은 기능 내의 요구사항만 선택할 수 있습니다." };
+  }
+
+  if ("receiverId" in target) {
+    const receiver = await prisma.member.findUnique({
+      where: { id: target.receiverId },
+      select: { id: true },
+    });
+    if (!receiver) return { ok: false, error: "존재하지 않는 멤버입니다." };
+    await prisma.completeNotification.create({
+      data: { triggerNodeId, targetNodeId, receiverId: receiver.id },
+    });
+  } else {
+    const group = await prisma.memberGroup.findUnique({
+      where: { id: target.groupId },
+      select: { id: true, projectId: true },
+    });
+    if (!group || group.projectId !== check.node.projectId) {
+      return { ok: false, error: "존재하지 않는 그룹입니다." };
+    }
+    await prisma.completeNotification.create({
+      data: { triggerNodeId, targetNodeId, groupId: group.id },
+    });
+  }
+
+  revalidatePath(`/project/${check.node.projectId}/node/${triggerNodeId}`);
+  return { ok: true };
+}
+
+/** 완료 알림 예약을 삭제한다. 참조: docs/domain/12-complete-notification.md */
+export async function deleteCompleteNotification(
+  id: number,
+): Promise<NodeActionResult> {
+  const member = await getCurrentMember();
+  if (!member) redirect("/signin");
+
+  const reservation = await prisma.completeNotification.findUnique({
+    where: { id },
+    select: { triggerNode: { select: { id: true, projectId: true } } },
+  });
+  if (!reservation) return { ok: true }; // 이미 삭제됨
+
+  await prisma.completeNotification.delete({ where: { id } });
+  revalidatePath(
+    `/project/${reservation.triggerNode.projectId}/node/${reservation.triggerNode.id}`,
+  );
   return { ok: true };
 }
 
