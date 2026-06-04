@@ -1,5 +1,5 @@
 ---
-version: "1.1"
+version: "1.2"
 created: "2026-06-04"
 updated: "2026-06-04"
 author: "arahansa"
@@ -13,6 +13,21 @@ coworks 서버의 API를 호출하기 위한 가이드.
 > **이 문서의 위치**: coworks 레포 안에 있지만, **내용은 "호출하는 쪽(다른 프로젝트)"** 기준으로 적혀 있다.
 > 연동하려는 프로젝트로 이 문서를 복사하거나 참조해서 사용하면 된다.
 > coworks **서버 쪽** API 스펙(엔드포인트 구현·동작)은 [`01-node.md`](./01-node.md) 참조.
+
+## API 목록
+
+모든 API는 `Authorization: Bearer {HANSPEC_COWORKS_ACCESSTOKEN}` 헤더가 필요하다.
+응답은 공통적으로 `{ "ok": boolean, ... }` 형태이며, 실패 시 `{ "ok": false, "error": "..." }`.
+
+| 메서드·경로 | 용도 | 성공 | 상세 |
+|---|---|---|---|
+| `GET /api/nodes/:id` | 노드 + 상위(기능·모듈) 한 번에 조회 | `200` | [↓](#get-apinodesid--노드요구사항기능모듈-조회) |
+| `PATCH /api/nodes/:id` | 노드 설명(description) 업데이트 | `200` | [↓](#patch-apinodesid--노드-설명description-업데이트) |
+| `GET /api/nodes/:id/tasks` | 노드의 Task 목록 조회 | `200` | [↓](#get-apinodesidtasks--노드의-task-목록-조회) |
+| `POST /api/tasks` | REQUIREMENT 노드에 Task 생성 | `201` | [↓](#post-apitasks--requirement-노드에-task-생성) |
+
+공통 에러: `400`(잘못된 입력) · `401`(토큰 없음/무효/만료) · `403`(프로젝트 권한 없음) · `404`(노드 없음).
+`POST /api/tasks`는 추가로 `422`(대상 노드가 REQUIREMENT가 아님).
 
 ---
 
@@ -121,6 +136,48 @@ Header: Authorization: Bearer {HANSPEC_COWORKS_ACCESSTOKEN}
 > 엔드포인트 동작의 상세 구현은 [`01-node.md`](./01-node.md) 및
 > `docs/superpowers/specs/2026-06-02-node-api-design.md` 참조.
 
+### `PATCH /api/nodes/:id` — 노드 설명(description) 업데이트
+
+노드의 설명을 갱신한다. 노드 레벨 제약 없음(모듈/기능/요구사항 모두 가능).
+
+```
+PATCH {HANSPEC_COWORKS_BASE_URL}/api/nodes/:id
+Header: Authorization: Bearer {HANSPEC_COWORKS_ACCESSTOKEN}
+Header: Content-Type: application/json
+```
+
+요청 바디:
+
+```json
+{ "description": "구현 컴포넌트 구조 설명..." }
+```
+
+| 필드 | 타입 | 필수 | 제약 |
+|---|---|---|---|
+| `description` | string \| null | ✅ | 문자열은 trim(빈 문자열은 설명 제거). `null`도 설명 제거 |
+
+성공 응답(`200`): 설명 수정 시 `version`이 1 증가한다.
+
+```json
+{ "ok": true, "node": { "id": 124, "level": "REQUIREMENT", "description": "...", "version": 3 } }
+```
+
+에러: `400`(잘못된 id/타입), `401`(토큰), `403`(권한), `404`(노드 없음).
+
+### `GET /api/nodes/:id/tasks` — 노드의 Task 목록 조회
+
+노드에 등록된 Task 목록을 얻는다. Task 생성 후 검증/멱등 처리에 사용. 인증/권한은 위와 동일.
+
+```json
+{
+  "ok": true,
+  "nodeId": 21,
+  "tasks": [
+    { "id": 12, "name": "GuestHeroSection", "endpoint": "app/intro/...", "description": "...", "progress": 0 }
+  ]
+}
+```
+
 ### `POST /api/tasks` — REQUIREMENT 노드에 Task 생성
 
 ```
@@ -154,20 +211,6 @@ Header: Content-Type: application/json
 에러: `400`(검증 실패), `401`(토큰), `403`(권한), `404`(노드 없음),
 `422`(노드가 REQUIREMENT가 아님).
 
-### `GET /api/nodes/:id/tasks` — 노드의 Task 목록 조회
-
-등록 후 검증/멱등 처리에 사용. 인증/권한은 위와 동일.
-
-```json
-{
-  "ok": true,
-  "nodeId": 21,
-  "tasks": [
-    { "id": 12, "name": "GuestHeroSection", "endpoint": "app/intro/...", "description": "...", "progress": 0 }
-  ]
-}
-```
-
 ---
 
 ## 4. 호출 코드
@@ -179,6 +222,16 @@ Header: Content-Type: application/json
 curl -H "Authorization: Bearer $HANSPEC_COWORKS_ACCESSTOKEN" \
   "$HANSPEC_COWORKS_BASE_URL/api/nodes/75"
 
+# 노드 설명 업데이트
+curl -X PATCH -H "Authorization: Bearer $HANSPEC_COWORKS_ACCESSTOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"description":"구현 컴포넌트 구조 설명..."}' \
+  "$HANSPEC_COWORKS_BASE_URL/api/nodes/124"
+
+# 노드의 Task 목록
+curl -H "Authorization: Bearer $HANSPEC_COWORKS_ACCESSTOKEN" \
+  "$HANSPEC_COWORKS_BASE_URL/api/nodes/21/tasks"
+
 # Task 생성
 curl -X POST -H "Authorization: Bearer $HANSPEC_COWORKS_ACCESSTOKEN" \
   -H "Content-Type: application/json" \
@@ -188,14 +241,36 @@ curl -X POST -H "Authorization: Bearer $HANSPEC_COWORKS_ACCESSTOKEN" \
 
 ### fetch (Node / TypeScript)
 
-서버 측에서만 호출한다(토큰 노출 방지). 재사용 가능한 클라이언트 형태 예시:
+서버 측에서만 호출한다(토큰 노출 방지). 아래를 `lib/coworks.ts` 등으로 두면 네 API를
+모두 한 클라이언트로 쓸 수 있다.
 
 ```ts
-// 호출하는 프로젝트의 lib/coworks.ts 등
+// 호출하는 프로젝트의 lib/coworks.ts
 const BASE = process.env.HANSPEC_COWORKS_BASE_URL;
 const TOKEN = process.env.HANSPEC_COWORKS_ACCESSTOKEN;
 
+/** 공통 호출기: 토큰 헤더 부착 + ok 검사 + 에러 메시지 통일. */
+async function call<T>(path: string, init?: RequestInit): Promise<T> {
+  if (!BASE || !TOKEN) {
+    throw new Error("HANSPEC_COWORKS_BASE_URL / HANSPEC_COWORKS_ACCESSTOKEN 환경 변수가 필요합니다.");
+  }
+  const res = await fetch(`${BASE}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${TOKEN}`,
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      ...init?.headers,
+    },
+    cache: "no-store",
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Error(`coworks ${res.status}: ${data.error}`);
+  return data as T;
+}
+
 type NodeSummary = { id: number; name: string; description: string | null };
+
+// GET /api/nodes/:id
 type NodeResponse = {
   ok: true;
   level: "REQUIREMENT" | "FEATURE" | "MODULE";
@@ -204,21 +279,40 @@ type NodeResponse = {
   feature: (NodeSummary & { endpoint: string | null }) | null;
   requirement: (NodeSummary & { status: string; version: number }) | null;
 };
+export const fetchNode = (id: number) =>
+  call<NodeResponse>(`/api/nodes/${id}`);
 
-export async function fetchNode(id: number): Promise<NodeResponse> {
-  if (!BASE || !TOKEN) {
-    throw new Error("HANSPEC_COWORKS_BASE_URL / HANSPEC_COWORKS_ACCESSTOKEN 환경 변수가 필요합니다.");
-  }
-  const res = await fetch(`${BASE}/api/nodes/${id}`, {
-    headers: { Authorization: `Bearer ${TOKEN}` },
-    // 캐시가 곤란하면 명시: cache: "no-store"
+// PATCH /api/nodes/:id
+type NodeUpdateResponse = {
+  ok: true;
+  node: { id: number; level: string; description: string | null; version: number };
+};
+export const updateNodeDescription = (id: number, description: string | null) =>
+  call<NodeUpdateResponse>(`/api/nodes/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ description }),
   });
-  const data = await res.json();
-  if (!data.ok) {
-    throw new Error(`coworks ${res.status}: ${data.error}`);
-  }
-  return data as NodeResponse;
-}
+
+// GET /api/nodes/:id/tasks
+type TaskItem = {
+  id: number; name: string | null; endpoint: string | null;
+  description: string; progress: number;
+};
+type TaskListResponse = { ok: true; nodeId: number; tasks: TaskItem[] };
+export const fetchNodeTasks = (id: number) =>
+  call<TaskListResponse>(`/api/nodes/${id}/tasks`);
+
+// POST /api/tasks
+type CreateTaskInput = {
+  nodeId: number; description: string;
+  progress?: number; name?: string; endpoint?: string;
+};
+type CreateTaskResponse = { ok: true; taskId: number };
+export const createTask = (input: CreateTaskInput) =>
+  call<CreateTaskResponse>(`/api/tasks`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 ```
 
 ---
