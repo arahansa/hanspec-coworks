@@ -42,6 +42,8 @@ type Props = {
   onClose: () => void;
   /** 요구사항 상세 페이지로 이동(REQUIREMENT에서만 노출). */
   onOpenDetail: () => void;
+  /** 요구사항 상세를 모달로 열기(REQUIREMENT에서만 노출). */
+  onOpenModal: () => void;
   /** 설명 저장(변경 시에만 호출). */
   onSaveDescription: (description: string) => void;
   /** ENDPOINT 저장(FEATURE 전용, 변경 시에만 호출). */
@@ -56,6 +58,7 @@ export function NodeDetailPanel({
   pending,
   onClose,
   onOpenDetail,
+  onOpenModal,
   onSaveDescription,
   onSaveEndpoint,
   onSaveTags,
@@ -108,15 +111,26 @@ export function NodeDetailPanel({
         </div>
         <div className="flex items-center gap-1">
           {node.level === "REQUIREMENT" && (
-            <button
-              type="button"
-              onClick={onOpenDetail}
-              aria-label="요구사항 상세 보기"
-              title="요구사항 상세 보기"
-              className="rounded px-1.5 py-0.5 text-sm text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-            >
-              ↗
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={onOpenDetail}
+                aria-label="요구사항 상세 페이지로 이동"
+                title="상세 페이지로 이동"
+                className="rounded px-1.5 py-0.5 text-sm text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+              >
+                ↗
+              </button>
+              <button
+                type="button"
+                onClick={onOpenModal}
+                aria-label="요구사항 상세 모달로 보기"
+                title="모달로 보기"
+                className="rounded px-1.5 py-0.5 text-sm text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+              >
+                ⛶
+              </button>
+            </>
           )}
           <button
             type="button"
