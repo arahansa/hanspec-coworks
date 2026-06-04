@@ -58,7 +58,14 @@ type ActionResult = { ok: boolean; error?: string; nodeId?: number };
 // 없으면(undefined) 상위 행의 rowSpan에 덮여 출력하지 않는다.
 type Row = {
   moduleCell?: { id: number; name: string; rowSpan: number; endpoint: string | null };
-  featureCell?: { id: number; name: string; rowSpan: number; endpoint: string | null };
+  featureCell?: {
+    id: number;
+    name: string;
+    rowSpan: number;
+    endpoint: string | null;
+    // 하위 요구사항 완료율(DONE/전체×100, 정수). 요구사항이 없으면 null(미표시).
+    progress: number | null;
+  };
   // 세 번째 칸(요구사항 영역)에 무엇을 그릴지
   third:
     | { kind: "req"; node: ReqNode }
@@ -78,6 +85,17 @@ function moduleRowCount(m: ModuleNode): number {
 /** 피처 총 행 수: 요구사항 수(없으면 1 빈행) + 요구사항추가행. */
 function featureRowCount(f: FeatureNode): number {
   return Math.max(1, f.children.length) + 1;
+}
+
+/**
+ * 기능의 하위 요구사항 완료율(DONE/전체×100, 정수). 예: 4개 중 3개 DONE → 75.
+ * 요구사항이 없으면 null(진행율 미표시).
+ */
+function featureProgress(f: FeatureNode): number | null {
+  const total = f.children.length;
+  if (total === 0) return null;
+  const done = f.children.filter((r) => r.status === "DONE").length;
+  return Math.round((done / total) * 100);
 }
 
 /**
@@ -123,6 +141,7 @@ function buildRows(modules: ModuleNode[], hideAffordances = false): Row[] {
         name: f.name,
         rowSpan: featRows(f),
         endpoint: f.endpoint,
+        progress: featureProgress(f),
       };
       const takeFeature = () => {
         const c = featurePending;
@@ -395,6 +414,20 @@ export function NodeEditor({ projectId, modules }: Props) {
                             run(() => deleteNode(row.featureCell!.id))
                           }
                         />
+                        {/* 하위 요구사항 완료율(DONE/전체). 요구사항 없으면 미표시. */}
+                        {row.featureCell.progress !== null && (
+                          <div className="mt-1.5 flex items-center gap-1.5">
+                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+                              <div
+                                className="h-full rounded-full bg-emerald-500 dark:bg-emerald-400"
+                                style={{ width: `${row.featureCell.progress}%` }}
+                              />
+                            </div>
+                            <span className="shrink-0 font-mono text-[10px] tabular-nums text-zinc-500 dark:text-zinc-400">
+                              {row.featureCell.progress}%
+                            </span>
+                          </div>
+                        )}
                         {/* ENDPOINT 정보가 있으면 노출 (09-feature.md) */}
                         {row.featureCell.endpoint && (
                           <p className="mt-1 truncate font-mono text-[11px] text-zinc-500 dark:text-zinc-400">
