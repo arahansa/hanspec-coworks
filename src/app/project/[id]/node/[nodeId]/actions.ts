@@ -251,6 +251,58 @@ export async function removeAssignee(
   return { ok: true };
 }
 
+/**
+ * REQUIREMENT 노드에서 개인 또는 그룹에게 확인 요청을 보낸다.
+ * 참조: docs/domain/11-request-notification.md
+ * - target은 개인({ receiverId }) 또는 그룹({ groupId }) 중 하나.
+ * - 그룹은 노드가 속한 프로젝트의 그룹이어야 한다.
+ */
+export async function sendRequest(
+  nodeId: number,
+  target: { receiverId: number } | { groupId: number },
+): Promise<NodeActionResult> {
+  const member = await getCurrentMember();
+  if (!member) redirect("/signin");
+
+  const check = await requireRequirementNode(nodeId);
+  if (!check.ok) return check.result;
+
+  if ("receiverId" in target) {
+    const receiver = await prisma.member.findUnique({
+      where: { id: target.receiverId },
+      select: { id: true },
+    });
+    if (!receiver) return { ok: false, error: "존재하지 않는 멤버입니다." };
+
+    await prisma.requestNotification.create({
+      data: {
+        senderId: member.id,
+        receiverId: receiver.id,
+        nodeId: check.node.id,
+      },
+    });
+  } else {
+    const group = await prisma.memberGroup.findUnique({
+      where: { id: target.groupId },
+      select: { id: true, projectId: true },
+    });
+    if (!group || group.projectId !== check.node.projectId) {
+      return { ok: false, error: "존재하지 않는 그룹입니다." };
+    }
+
+    await prisma.requestNotification.create({
+      data: {
+        senderId: member.id,
+        groupId: group.id,
+        nodeId: check.node.id,
+      },
+    });
+  }
+
+  revalidatePath(`/project/${check.node.projectId}/node/${check.node.id}`);
+  return { ok: true };
+}
+
 export type EnvNamesResult =
   | { ok: true; names: string[] }
   | { ok: false; error: string };

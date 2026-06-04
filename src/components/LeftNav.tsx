@@ -74,8 +74,23 @@ export function LeftNav({ projects }: Props) {
     );
   }
 
+  const notificationsActive = pathname === "/notifications";
+
   return (
     <aside className="w-56 shrink-0 border-r border-zinc-200 p-4 dark:border-zinc-800">
+      {/* 요청 알림 (참조: docs/domain/11-request-notification.md) */}
+      <Link
+        href="/notifications"
+        aria-current={notificationsActive ? "page" : undefined}
+        className={`mb-3 block rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+          notificationsActive
+            ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
+            : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
+        }`}
+      >
+        요청 알림
+      </Link>
+
       <div className="flex items-center justify-between px-2 pb-2">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
           프로젝트
