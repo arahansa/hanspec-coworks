@@ -71,6 +71,10 @@ export default async function RequirementDetailPage({
         orderBy: { assignedAt: "asc" },
         select: { member: { select: { id: true, username: true } } },
       },
+      // 이미 보낸 확인 요청의 대상(개인/그룹). 중복 전송 표시·재요청에 사용. (11)
+      requests: {
+        select: { receiverId: true, groupId: true },
+      },
     },
   });
 
@@ -108,6 +112,14 @@ export default async function RequirementDetailPage({
   }));
 
   const groups: GroupOption[] = node.project.memberGroups;
+
+  // 이미 확인 요청을 보낸 대상 id 집합(개인/그룹).
+  const requestedMemberIds = node.requests
+    .map((r) => r.receiverId)
+    .filter((x): x is number => x != null);
+  const requestedGroupIds = node.requests
+    .map((r) => r.groupId)
+    .filter((x): x is number => x != null);
 
   // 상위 노드를 위(모듈)→아래(기능) 순으로 모아 빵부스러기로 쓴다.
   const LEVEL_LABEL: Record<string, string> = {
@@ -158,7 +170,12 @@ export default async function RequirementDetailPage({
 
       <StatusSection nodeId={node.id} status={node.status} />
       <AssigneeSection nodeId={node.id} assignees={assignees} />
-      <RequestSection nodeId={node.id} groups={groups} />
+      <RequestSection
+        nodeId={node.id}
+        groups={groups}
+        requestedMemberIds={requestedMemberIds}
+        requestedGroupIds={requestedGroupIds}
+      />
       <TaskSection nodeId={node.id} tasks={tasks} envNames={envNames} />
     </div>
   );
