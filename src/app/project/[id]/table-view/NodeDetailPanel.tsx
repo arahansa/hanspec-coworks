@@ -82,6 +82,9 @@ export function NodeDetailPanel({
       />
       {/*
         넓은 화면(lg 이상): 테이블 옆에 붙는 인라인 컬럼.
+          sticky로 두어 표를 길게 스크롤해도 패널이 헤더(h-14=3.5rem) 바로 아래에
+          고정되어 따라온다. self-start가 없으면 flex 부모의 stretch로 늘어나
+          sticky가 동작하지 않는다. 패널이 화면보다 길면 자체 스크롤한다.
         좁은 화면(lg 미만): 우측에서 떠오르는 불투명 오버레이 드로어.
       */}
       <aside
@@ -89,7 +92,8 @@ export function NodeDetailPanel({
           fixed inset-y-0 right-0 z-40 w-80 max-w-[90vw] overflow-y-auto
           border-l border-zinc-200 bg-white p-5 shadow-2xl
           dark:border-zinc-800 dark:bg-zinc-950
-          lg:static lg:z-auto lg:max-w-none lg:shrink-0 lg:overflow-visible
+          lg:sticky lg:top-14 lg:z-auto lg:max-w-none lg:shrink-0 lg:self-start
+          lg:max-h-[calc(100vh-3.5rem)] lg:overflow-y-auto
           lg:p-0 lg:pl-5 lg:shadow-none
         "
       >
