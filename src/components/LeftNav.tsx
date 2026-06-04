@@ -23,6 +23,7 @@ const HIDDEN_PREFIXES = ["/admin", "/signin", "/signup", "/me"];
 const PROJECT_TASK_ITEMS = [
   { segment: "/table-view", label: "TableView" },
   { segment: "/environment", label: "환경변수 관리" },
+  { segment: "/groups", label: "그룹관리" },
 ] as const;
 
 function selectedProjectId(pathname: string): number | null {
