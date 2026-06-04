@@ -211,6 +211,8 @@ export function NodeEditor({ projectId, modules }: Props) {
   );
   // "진행중만 보기" 필터. 화면 상태로만 관리(새로고침 시 초기화).
   const [inProgressOnly, setInProgressOnly] = useState(false);
+  // 요구사항 셀의 태그 배지 표시 여부. 모든 요구사항은 그대로 나오고 배지만 토글한다.
+  const [showTags, setShowTags] = useState(true);
   // 모듈 목록이 바뀌면(추가/삭제) 동기화한다.
   // - 새로 생긴 모듈은 자동 선택(전체가 보이던 기본 동작 유지).
   // - 삭제된 모듈 id는 선택에서 제거.
@@ -319,6 +321,17 @@ export function NodeEditor({ projectId, modules }: Props) {
               className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600"
             />
             진행중만
+          </label>
+        )}
+        {modules.length > 0 && (
+          <label className="flex items-center gap-1.5 text-sm text-zinc-600 dark:text-zinc-300">
+            <input
+              type="checkbox"
+              checked={showTags}
+              onChange={(e) => setShowTags(e.target.checked)}
+              className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600"
+            />
+            태그 표시
           </label>
         )}
         {addBtn("+ 새 모듈", () =>
@@ -503,6 +516,19 @@ export function NodeEditor({ projectId, modules }: Props) {
                             </span>
                           ))}
                         </div>
+                        {/* 태그 배지. '태그 표시' 체크 시에만 노출(05-tag.md) */}
+                        {showTags && row.third.node.tags.length > 0 && (
+                          <div className="mt-1 flex flex-wrap items-center gap-1">
+                            {row.third.node.tags.map((t) => (
+                              <span
+                                key={t}
+                                className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300"
+                              >
+                                #{t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </td>
                     )}
                     {row.third.kind === "req-empty" && (
