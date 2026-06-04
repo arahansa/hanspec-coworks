@@ -37,10 +37,12 @@ model Member {
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
-  accessToken   AccessToken?
-  assignedNodes NodeAssignee[]
-  projects      ProjectMember[]
-  groups        MemberGroupParticipant[]
+  accessToken      AccessToken?
+  assignedNodes    NodeAssignee[]
+  projects         ProjectMember[]
+  groups           MemberGroupParticipant[]
+  sentRequests     RequestNotification[]    @relation("SentRequests")
+  receivedRequests RequestNotification[]    @relation("ReceivedRequests")
 }
 
 /// 프로젝트 정보.
@@ -95,6 +97,7 @@ model Node {
   tasks     Task[]
   assignees NodeAssignee[]
   tags      NodeTag[]
+  requests  RequestNotification[]
 }
 
 /// 프로젝트 단위로 관리되는 태그. 같은 프로젝트 내에서 이름은 유일하다.
@@ -191,6 +194,7 @@ model MemberGroup {
 
   project      Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   participants MemberGroupParticipant[]
+  requests     RequestNotification[]
 
   @@map("member_group")
 }
@@ -207,6 +211,31 @@ model MemberGroupParticipant {
 
   @@unique([groupId, memberId])
   @@map("member_group_participant")
+}
+
+/// 요구사항(Node)에서 개인(receiver) 또는 그룹(group)에게 보내는 확인 요청.
+/// receiverId/groupId 중 정확히 하나만 채워진다(개인 또는 그룹).
+/// 요청을 받은 쪽이 확인하면 checked=true, checkedAt=확인 시각이 된다.
+/// 참조: docs/domain/11-request-notification.md
+model RequestNotification {
+  id         Int       @id @default(autoincrement())
+  senderId   Int // 요청을 보낸 멤버
+  receiverId Int? // 개인 수신자(그룹 요청이면 null)
+  groupId    Int? // 그룹 수신자(개인 요청이면 null)
+  nodeId     Int // 요청 대상 요구사항 노드
+  checked    Boolean   @default(false)
+  checkedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  sender   Member       @relation("SentRequests", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver Member?      @relation("ReceivedRequests", fields: [receiverId], references: [id], onDelete: Cascade)
+  group    MemberGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  node     Node         @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@index([receiverId])
+  @@index([groupId])
+  @@index([senderId])
+  @@map("request_notification")
 }
 
 /// 멤버가 로컬(CLI/MCP) 환경에서 사용할 액세스 토큰. 멤버당 1개.

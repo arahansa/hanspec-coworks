@@ -8,6 +8,7 @@ import { TaskSection, type TaskItem } from "./TaskSection";
 import { StatusSection } from "./StatusSection";
 import { AssigneeSection, type AssigneeItem } from "./AssigneeSection";
 import { DescriptionSection } from "./DescriptionSection";
+import { RequestSection, type GroupOption } from "./RequestSection";
 import { IdCopyButtons } from "./IdCopyButtons";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +42,8 @@ export default async function RequirementDetailPage({
           name: true,
           // Task endpoint {{}} 자동완성용 환경변수 이름. (06-task.md)
           environments: { orderBy: { name: "asc" }, select: { name: true } },
+          // 확인 요청을 보낼 그룹 목록. (11-request-notification.md)
+          memberGroups: { orderBy: { name: "asc" }, select: { id: true, name: true } },
         },
       },
       tasks: {
@@ -94,6 +97,8 @@ export default async function RequirementDetailPage({
     username: a.member.username,
   }));
 
+  const groups: GroupOption[] = node.project.memberGroups;
+
   return (
     <div className="p-8">
       <Link href={backHref} className="text-sm text-blue-600 hover:underline dark:text-blue-400">
@@ -116,6 +121,7 @@ export default async function RequirementDetailPage({
 
       <StatusSection nodeId={node.id} status={node.status} />
       <AssigneeSection nodeId={node.id} assignees={assignees} />
+      <RequestSection nodeId={node.id} groups={groups} />
       <TaskSection nodeId={node.id} tasks={tasks} envNames={envNames} />
     </div>
   );
