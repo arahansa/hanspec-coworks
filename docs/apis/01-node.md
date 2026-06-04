@@ -1,5 +1,5 @@
 ---
-version: "1.2"
+version: "1.3"
 created: "2026-06-02"
 updated: "2026-06-04"
 author: "arahansa"
@@ -110,13 +110,33 @@ Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
 - 응답: `{ ok: true, nodeId, tasks: [{ id, name, endpoint, description, progress }] }`.
 - 등록 후 검증/멱등 처리에 사용.
 
+## Node 설명 업데이트 API (2026-06-04 추가)
+
+요청 사양: `kpopfandom-front/docs/apis/04-node-update-api-design.md`.
+
+### `PATCH /api/nodes/:id` — 노드 설명(description) 업데이트
+
+```
+PATCH {HANSPEC_COWORKS_BASE_URL}/api/nodes/:id
+Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
+Header: Content-Type: application/json
+Body: { "description": "..." | null }
+```
+
+- 인증·권한은 `GET /api/nodes/:id`와 동일(토큰 7일, SUPER 우회 + projectMember).
+- **노드 레벨 제약 없음**(MODULE/FEATURE/REQUIREMENT 모두 설명 가능).
+- `description`: 문자열이면 trim(빈 문자열은 null), `null`이면 설명 제거.
+  설명 수정은 도메인상 `version`+1 대상(웹 UI `updateNode`와 동일).
+- 성공: `200 { ok: true, node: { id, level, description, version } }`.
+- 에러: `400`(잘못된 id/타입), `401`(토큰), `403`(권한), `404`(노드 없음).
+
 ## 한계 / 차후 과제
 
 - 토큰은 현재 평문 저장. 외부 노출되므로 향후 해시 저장 권장.
 - 멤버-프로젝트 소속 관리 UI(admin)는 미구현. 현재는 전체 멤버를 백필해 둠.
 
 ## 산출 코드
-- `src/app/api/nodes/[id]/route.ts` — GET 노드 라우트
+- `src/app/api/nodes/[id]/route.ts` — GET 노드 라우트 + PATCH 설명 업데이트 (2026-06-04)
 - `src/app/api/tasks/route.ts` — POST Task 생성 라우트 (2026-06-04)
 - `src/app/api/nodes/[id]/tasks/route.ts` — GET Task 목록 라우트 (2026-06-04)
 - `src/lib/access-token.ts` — `authenticateByToken`
