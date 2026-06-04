@@ -498,6 +498,10 @@ export function NodeEditor({ projectId, modules }: Props) {
 
         {detailNode && (
           <NodeDetailPanel
+            // 노드 id를 key로 줘서 다른 노드를 선택하면 패널을 새로 마운트한다.
+            // 없으면 인스턴스가 재사용되어 useState(node.description) 초기값이
+            // 재적용되지 않고 이전 노드의 입력(draft)이 남는다. (rowKey와 같은 이유)
+            key={detailNode.id}
             node={detailNode}
             projectId={projectId}
             pending={pending}
