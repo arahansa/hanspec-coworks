@@ -35,6 +35,8 @@ type NodeBase = {
 export type AssigneeItem = { id: number; username: string };
 export type ReqNode = NodeBase & {
   status: NodeStatus;
+  // REQUIREMENT도 ENDPOINT 가능 (FEATURE/MODULE과 동일)
+  endpoint: string | null;
   assignees: AssigneeItem[];
 };
 // FEATURE 전용 필드: ENDPOINT·TAG (09-feature.md)
@@ -365,6 +367,12 @@ export function NodeEditor({ projectId, modules }: Props) {
                             )
                           }
                         />
+                        {/* ENDPOINT 정보가 있으면 노출 (MODULE·FEATURE와 동일) */}
+                        {row.third.node.endpoint && (
+                          <p className="mt-1 truncate font-mono text-[11px] text-zinc-500 dark:text-zinc-400">
+                            {row.third.node.endpoint}
+                          </p>
+                        )}
                         {/* 상태·담당자를 셀에서 함께 노출 (03-node.md) */}
                         <div className="mt-1 flex flex-wrap items-center gap-1">
                           <span

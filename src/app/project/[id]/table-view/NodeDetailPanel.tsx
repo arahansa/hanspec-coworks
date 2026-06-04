@@ -69,8 +69,11 @@ export function NodeDetailPanel({
 
   const isFeature = node.level === "FEATURE";
   const isRequirement = node.level === "REQUIREMENT";
-  // ENDPOINT는 MODULE·FEATURE에서 입력할 수 있다. (09-feature.md)
-  const hasEndpoint = node.level === "MODULE" || node.level === "FEATURE";
+  // ENDPOINT는 MODULE·FEATURE·REQUIREMENT 모두에서 입력할 수 있다. (09-feature.md)
+  const hasEndpoint =
+    node.level === "MODULE" ||
+    node.level === "FEATURE" ||
+    node.level === "REQUIREMENT";
 
   return (
     <>
@@ -169,7 +172,7 @@ export function NodeDetailPanel({
         </button>
       </div>
 
-      {/* MODULE·FEATURE: ENDPOINT (09-feature.md) */}
+      {/* MODULE·FEATURE·REQUIREMENT: ENDPOINT (09-feature.md) */}
       {hasEndpoint && (
         <div className="mt-6">
           <label className="flex flex-col gap-1 text-sm">
