@@ -80,13 +80,27 @@ function featureRowCount(f: FeatureNode): number {
   return Math.max(1, f.children.length) + 1;
 }
 
-function buildRows(modules: ModuleNode[]): Row[] {
+/**
+ * 트리를 행 단위로 평탄화한다.
+ * hideAffordances=true('진행중만 보기' 등 조회 모드)면 추가 버튼(feat-add/req-add)과
+ * 빈 플레이스홀더(mod-empty/req-empty) 행을 생성하지 않는다. 이 모드에서는 호출 전
+ * 가지치기로 빈 기능/모듈이 이미 제거되므로 rowSpan 계산도 그에 맞춰 보정한다.
+ */
+function buildRows(modules: ModuleNode[], hideAffordances = false): Row[] {
+  // 추가행을 숨길 땐 모듈/피처의 rowSpan에서 추가행 몫(+1)을 빼야 셀 병합이 맞는다.
+  const modRows = (m: ModuleNode) =>
+    hideAffordances
+      ? m.children.reduce((s, f) => s + featRows(f), 0)
+      : moduleRowCount(m);
+  const featRows = (f: FeatureNode) =>
+    hideAffordances ? f.children.length : featureRowCount(f);
+
   const rows: Row[] = [];
   for (const m of modules) {
     let modulePending: Row["moduleCell"] | undefined = {
       id: m.id,
       name: m.name,
-      rowSpan: moduleRowCount(m),
+      rowSpan: modRows(m),
       endpoint: m.endpoint,
     };
     const takeModule = () => {
@@ -96,6 +110,8 @@ function buildRows(modules: ModuleNode[]): Row[] {
     };
 
     if (m.children.length === 0) {
+      // hideAffordances면 가지치기로 여기 도달하지 않지만 방어적으로 건너뛴다.
+      if (hideAffordances) continue;
       rows.push({ moduleCell: takeModule(), third: { kind: "mod-empty" }, featureSpanFull: true });
       rows.push({ third: { kind: "feat-add", moduleId: m.id } });
       continue;
@@ -105,7 +121,7 @@ function buildRows(modules: ModuleNode[]): Row[] {
       let featurePending: Row["featureCell"] | undefined = {
         id: f.id,
         name: f.name,
-        rowSpan: featureRowCount(f),
+        rowSpan: featRows(f),
         endpoint: f.endpoint,
       };
       const takeFeature = () => {
@@ -115,6 +131,7 @@ function buildRows(modules: ModuleNode[]): Row[] {
       };
 
       if (f.children.length === 0) {
+        if (hideAffordances) continue;
         rows.push({
           moduleCell: takeModule(),
           featureCell: takeFeature(),
@@ -129,9 +146,13 @@ function buildRows(modules: ModuleNode[]): Row[] {
           });
         }
       }
-      rows.push({ third: { kind: "req-add", featureId: f.id } });
+      if (!hideAffordances) {
+        rows.push({ third: { kind: "req-add", featureId: f.id } });
+      }
     }
-    rows.push({ third: { kind: "feat-add", moduleId: m.id } });
+    if (!hideAffordances) {
+      rows.push({ third: { kind: "feat-add", moduleId: m.id } });
+    }
   }
   return rows;
 }
@@ -146,6 +167,8 @@ export function NodeEditor({ projectId, modules }: Props) {
   const [selectedModuleIds, setSelectedModuleIds] = useState<Set<number>>(
     () => new Set(modules.map((m) => m.id)),
   );
+  // "진행중만 보기" 필터. 화면 상태로만 관리(새로고침 시 초기화).
+  const [inProgressOnly, setInProgressOnly] = useState(false);
   // 모듈 목록이 바뀌면(추가/삭제) 동기화한다.
   // - 새로 생긴 모듈은 자동 선택(전체가 보이던 기본 동작 유지).
   // - 삭제된 모듈 id는 선택에서 제거.
@@ -167,6 +190,22 @@ export function NodeEditor({ projectId, modules }: Props) {
 
   // 선택된 모듈만 표에 노출한다.
   const visibleModules = modules.filter((m) => selectedModuleIds.has(m.id));
+
+  // "진행중만 보기": IN_PROGRESS 요구사항만 남기고, 그 결과 빈 기능·모듈은 제거한다.
+  // 모듈 멀티셀렉트(visibleModules)와 AND로 합성된다.
+  const displayModules = inProgressOnly
+    ? visibleModules
+        .map((m) => ({
+          ...m,
+          children: m.children
+            .map((f) => ({
+              ...f,
+              children: f.children.filter((r) => r.status === "IN_PROGRESS"),
+            }))
+            .filter((f) => f.children.length > 0),
+        }))
+        .filter((m) => m.children.length > 0)
+    : visibleModules;
 
   function run(action: () => Promise<ActionResult>) {
     setError(null);
@@ -200,7 +239,8 @@ export function NodeEditor({ projectId, modules }: Props) {
     return null; // 삭제된 경우
   })();
 
-  const rows = buildRows(visibleModules);
+  // 진행중만 보기 모드에선 추가 버튼·빈 행을 숨긴다(조회/검토 모드).
+  const rows = buildRows(displayModules, inProgressOnly);
 
   const addBtn = (label: string, onClick: () => void) => (
     <button
@@ -227,6 +267,17 @@ export function NodeEditor({ projectId, modules }: Props) {
             onChange={setSelectedModuleIds}
           />
         )}
+        {modules.length > 0 && (
+          <label className="flex items-center gap-1.5 text-sm text-zinc-600 dark:text-zinc-300">
+            <input
+              type="checkbox"
+              checked={inProgressOnly}
+              onChange={(e) => setInProgressOnly(e.target.checked)}
+              className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600"
+            />
+            진행중만
+          </label>
+        )}
         {addBtn("+ 새 모듈", () =>
           run(() => createModule(projectId, "새 모듈", "")),
         )}
@@ -250,6 +301,10 @@ export function NodeEditor({ projectId, modules }: Props) {
       ) : visibleModules.length === 0 ? (
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           선택된 모듈이 없습니다. 상단 필터에서 모듈을 선택하세요.
+        </p>
+      ) : displayModules.length === 0 ? (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          진행중인 요구사항이 없습니다.
         </p>
       ) : (
         <table className="w-full border-collapse border border-zinc-300 text-sm dark:border-zinc-700">
