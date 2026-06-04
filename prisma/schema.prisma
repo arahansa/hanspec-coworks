@@ -40,6 +40,7 @@ model Member {
   accessToken   AccessToken?
   assignedNodes NodeAssignee[]
   projects      ProjectMember[]
+  groups        MemberGroupParticipant[]
 }
 
 /// 프로젝트 정보.
@@ -55,6 +56,7 @@ model Project {
   tags        Tag[]
   environments Environment[]
   members     ProjectMember[]
+  memberGroups MemberGroup[]
 }
 
 /// 노드 레벨. 1단계 편집기는 MODULE만 다룬다.
@@ -177,6 +179,34 @@ model Task {
   updatedAt   DateTime @updatedAt
 
   node Node @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+}
+
+/// 프로젝트에 속한 멤버 그룹. 같은 프로젝트 내 멤버들을 묶는 단위.
+/// 참조: docs/domain/10-user-group.md
+model MemberGroup {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(255)
+  projectId Int
+  createdAt DateTime @default(now())
+
+  project      Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  participants MemberGroupParticipant[]
+
+  @@map("member_group")
+}
+
+/// 멤버-그룹 참여 조인. 한 멤버가 같은 그룹에 중복 참여할 수 없다.
+/// 참조: docs/domain/10-user-group.md
+model MemberGroupParticipant {
+  id       Int @id @default(autoincrement())
+  groupId  Int
+  memberId Int
+
+  group  MemberGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member Member      @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, memberId])
+  @@map("member_group_participant")
 }
 
 /// 멤버가 로컬(CLI/MCP) 환경에서 사용할 액세스 토큰. 멤버당 1개.
