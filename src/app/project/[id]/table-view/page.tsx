@@ -61,6 +61,8 @@ export default async function ProjectTableViewPage({
               ...detail,
               // REQUIREMENT 전용: 상태·담당자 (03-node.md 추가요청1·2)
               status: true,
+              // REQUIREMENT도 ENDPOINT를 가질 수 있다. (FEATURE/MODULE과 동일)
+              endpoint: true,
               assignees: {
                 orderBy: { assignedAt: "asc" },
                 select: { member: { select: { id: true, username: true } } },

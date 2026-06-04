@@ -1,7 +1,7 @@
 ---
-version: "1.2"
+version: "1.3"
 created: "2026-06-02"
-updated: "2026-06-02"
+updated: "2026-06-04"
 author: "arahansa"
 ---
 
@@ -17,7 +17,7 @@ author: "arahansa"
 
 ## 구현 완료 (2026-06-02)
 
-- **ENDPOINT**: `Node.endpoint`(`VarChar(255)`, nullable) 컬럼. MODULE·FEATURE 상세에서 입력하며, 테이블뷰의 해당 셀에 값이 있을 때 노출. (2026-06-02 추가: 기존 FEATURE 전용에서 MODULE까지 확장)
+- **ENDPOINT**: `Node.endpoint`(`VarChar(255)`, nullable) 컬럼. MODULE·FEATURE·REQUIREMENT 상세에서 입력하며, 테이블뷰의 해당 셀에 값이 있을 때 노출. (2026-06-02: FEATURE 전용 → MODULE 확장 / 2026-06-04: REQUIREMENT까지 확장)
 - **TAG**: 프로젝트 스코프 `Tag` 모델 + `NodeTag` 조인(다대다). 자동완성 펼침목록은 프로젝트별로 모은다. 우선 FEATURE에만 부여. `@`로 하나씩 입력하며, 없는 태그는 신규 생성·있는 태그는 목록에서 선택.
 
 ### 산출 코드
