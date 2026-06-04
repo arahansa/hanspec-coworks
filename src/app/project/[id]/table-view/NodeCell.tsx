@@ -5,7 +5,7 @@ import { useState } from "react";
 
 type Props = {
   value: string;
-  /** 노드 레벨. 현재 셀 표시에는 사용하지 않으나 호출부 호환을 위해 유지. */
+  /** 노드 레벨. 모듈·기능 삭제 시 confirm 메시지·게이팅에 사용. */
   level?: "MODULE" | "FEATURE" | "REQUIREMENT";
   pending: boolean;
   /** 상세 패널에서 현재 열려 있는 노드인지(강조 표시). */
@@ -17,9 +17,16 @@ type Props = {
   onDelete: () => void;
 };
 
+const LEVEL_LABEL: Record<NonNullable<Props["level"]>, string> = {
+  MODULE: "모듈",
+  FEATURE: "기능",
+  REQUIREMENT: "요구사항",
+};
+
 /** 한 노드의 이름 셀. 클릭/포커스로 편집, blur 시 변경분 자동 저장. */
 export function NodeCell({
   value,
+  level,
   pending,
   active = false,
   onCommit,
@@ -32,6 +39,20 @@ export function NodeCell({
     const next = draft.trim();
     if (next && next !== value) onCommit(next);
     else if (!next) setDraft(value); // 빈 값이면 되돌린다
+  }
+
+  // 모듈·기능은 삭제 시 하위 노드가 함께 사라지므로(Cascade) confirm으로 한 번 확인한다.
+  // 요구사항은 단일 노드 삭제라 확인 없이 진행한다.
+  function handleDelete() {
+    if (level === "MODULE" || level === "FEATURE") {
+      const label = LEVEL_LABEL[level];
+      const name = value.trim() || "(이름 없음)";
+      const ok = window.confirm(
+        `${label} "${name}"을(를) 삭제하시겠습니까?\n하위 항목도 함께 삭제됩니다.`,
+      );
+      if (!ok) return;
+    }
+    onDelete();
   }
 
   return (
@@ -68,7 +89,7 @@ export function NodeCell({
       </button>
       <button
         type="button"
-        onClick={onDelete}
+        onClick={handleDelete}
         disabled={pending}
         aria-label="삭제"
         className="shrink-0 rounded px-1.5 py-0.5 text-xs text-zinc-300 opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 disabled:opacity-50 dark:text-zinc-600 dark:hover:bg-red-950/40 dark:hover:text-red-400"
