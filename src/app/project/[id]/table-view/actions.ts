@@ -239,11 +239,11 @@ function normalizeTagName(raw: string): string {
 }
 
 /**
- * FEATURE 노드의 태그를 주어진 목록으로 동기화한다.
+ * FEATURE·REQUIREMENT 노드의 태그를 주어진 목록으로 동기화한다. (05-tag.md)
  * 없는 태그는 프로젝트에 새로 만들고, 빠진 태그 연결은 끊는다.
  * 태그 마스터(Tag) 자체는 다른 노드가 참조할 수 있으므로 삭제하지 않는다.
  */
-export async function setFeatureTags(
+export async function setNodeTags(
   nodeId: number,
   tagNames: string[],
 ): Promise<SetTagsResult> {
@@ -255,8 +255,11 @@ export async function setFeatureTags(
     }),
   ]);
   if (!node) return { ok: false, error: "존재하지 않는 노드입니다." };
-  if (node.level !== "FEATURE") {
-    return { ok: false, error: "태그는 기능(FEATURE)에만 부여할 수 있습니다." };
+  if (node.level !== "FEATURE" && node.level !== "REQUIREMENT") {
+    return {
+      ok: false,
+      error: "태그는 기능(FEATURE)·요구사항(REQUIREMENT)에만 부여할 수 있습니다.",
+    };
   }
 
   // 정규화 + 중복 제거(대소문자 무시). 표시는 처음 입력된 형태를 유지한다.

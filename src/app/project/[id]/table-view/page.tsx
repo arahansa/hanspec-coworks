@@ -63,6 +63,11 @@ export default async function ProjectTableViewPage({
               status: true,
               // REQUIREMENT도 ENDPOINT를 가질 수 있다. (FEATURE/MODULE과 동일)
               endpoint: true,
+              // REQUIREMENT도 TAG를 가질 수 있다. (05-tag.md)
+              tags: {
+                orderBy: { tag: { name: "asc" } },
+                select: { tag: { select: { name: true } } },
+              },
               assignees: {
                 orderBy: { assignedAt: "asc" },
                 select: { member: { select: { id: true, username: true } } },
@@ -86,6 +91,8 @@ export default async function ProjectTableViewPage({
       children: f.children.map((r) => ({
         ...r,
         createdAt: r.createdAt.toISOString(),
+        // NodeTag[] → 태그 이름 문자열 배열로 평탄화
+        tags: r.tags.map((nt) => nt.tag.name),
         // NodeAssignee[] → 멤버 요약 배열로 평탄화
         assignees: r.assignees.map((a) => a.member),
       })),
