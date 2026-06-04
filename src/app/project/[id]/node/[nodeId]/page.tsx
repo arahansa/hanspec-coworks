@@ -37,6 +37,16 @@ export default async function RequirementDetailPage({
       version: true,
       status: true,
       projectId: true,
+      // 상위 트리(기능→모듈)를 따라 올라가 빵부스러기를 만든다.
+      // REQUIREMENT의 부모는 FEATURE, 그 부모는 MODULE.
+      parent: {
+        select: {
+          id: true,
+          name: true,
+          level: true,
+          parent: { select: { id: true, name: true, level: true } },
+        },
+      },
       project: {
         select: {
           name: true,
@@ -99,16 +109,43 @@ export default async function RequirementDetailPage({
 
   const groups: GroupOption[] = node.project.memberGroups;
 
+  // 상위 노드를 위(모듈)→아래(기능) 순으로 모아 빵부스러기로 쓴다.
+  const LEVEL_LABEL: Record<string, string> = {
+    MODULE: "모듈",
+    FEATURE: "기능",
+    REQUIREMENT: "요구사항",
+  };
+  const ancestors = [node.parent?.parent, node.parent].filter(
+    (a) => a != null,
+  );
+
   return (
     <div className="p-8">
       <Link href={backHref} className="text-sm text-blue-600 hover:underline dark:text-blue-400">
         ← TableView로 돌아가기
       </Link>
 
-      <p className="mt-4 font-mono text-xs uppercase tracking-widest text-zinc-400 dark:text-zinc-600">
-        {node.project.name} · 요구사항
+      {/* 빵부스러기: 프로젝트 › 모듈 › 기능 — 어떤 기능의 요구사항인지 한눈에. */}
+      <nav
+        aria-label="상위 경로"
+        className="mt-4 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-zinc-500 dark:text-zinc-400"
+      >
+        <span className="text-zinc-400 dark:text-zinc-500">{node.project.name}</span>
+        {ancestors.map((a) => (
+          <span key={a.id} className="flex items-center gap-1.5">
+            <span className="text-zinc-300 dark:text-zinc-600">›</span>
+            <span className="font-mono text-[10px] uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+              {LEVEL_LABEL[a.level] ?? a.level}
+            </span>
+            <span className="font-medium text-zinc-700 dark:text-zinc-300">{a.name}</span>
+          </span>
+        ))}
+      </nav>
+
+      <p className="mt-2 font-mono text-xs uppercase tracking-widest text-zinc-400 dark:text-zinc-600">
+        요구사항
       </p>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight text-black dark:text-zinc-50">
+      <h1 className="mt-1 text-2xl font-semibold tracking-tight text-black dark:text-zinc-50">
         {node.name}
       </h1>
       <p className="mt-1 font-mono text-xs text-zinc-400">
