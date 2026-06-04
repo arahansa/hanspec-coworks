@@ -157,6 +157,27 @@ function buildRows(modules: ModuleNode[], hideAffordances = false): Row[] {
   return rows;
 }
 
+/**
+ * 행의 안정적인 React key. 인덱스를 key로 쓰면 '진행중만' 토글로 행 수가 바뀔 때
+ * NodeCell의 내부 draft 상태가 엉뚱한 노드에 재사용되어 제목과 배지가 어긋난다.
+ * req 행은 반드시 노드 id로 식별해 인스턴스 공유를 막는다.
+ */
+function rowKey(row: Row, i: number): string {
+  const t = row.third;
+  switch (t.kind) {
+    case "req":
+      return `req-${t.node.id}`;
+    case "req-add":
+      return `req-add-${t.featureId}`;
+    case "feat-add":
+      return `feat-add-${t.moduleId}`;
+    case "req-empty":
+      return `req-empty-${row.featureCell?.id ?? i}`;
+    case "mod-empty":
+      return `mod-empty-${row.moduleCell?.id ?? i}`;
+  }
+}
+
 export function NodeEditor({ projectId, modules }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -323,7 +344,7 @@ export function NodeEditor({ projectId, modules }: Props) {
           </thead>
           <tbody>
             {rows.map((row, i) => (
-              <tr key={i}>
+              <tr key={rowKey(row, i)}>
                 {/* 모듈 칸 */}
                 {row.moduleCell && (
                   <td className={moduleCellCls} rowSpan={row.moduleCell.rowSpan}>
