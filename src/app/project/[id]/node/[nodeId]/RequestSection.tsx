@@ -73,7 +73,7 @@ export function RequestSection({
     const id = Number(groupId);
     if (!Number.isInteger(id) || pending) return;
     const name = groups.find((g) => g.id === id)?.name ?? "그룹";
-    // 선택은 유지한다(재요청 상태를 계속 보여주기 위해).
+    // 선택은 유지한다(전송 후 "요청됨" 표시를 계속 보여주기 위해).
     send({ groupId: id }, name);
   }
 
@@ -122,28 +122,36 @@ export function RequestSection({
 
           {open && candidates.length > 0 && (
             <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-              {candidates.map((c) => (
-                <li key={c.id}>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      setOpen(false);
-                      setQuery("");
-                      setCandidates([]);
-                      send({ receiverId: c.id }, `@${c.username}`);
-                    }}
-                    className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left font-mono text-sm text-zinc-700 transition hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                  >
-                    <span>@{c.username}</span>
-                    {requestedMemberIds.includes(c.id) && (
-                      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-normal text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
-                        요청됨 · 재요청
+              {candidates.map((c) => {
+                const requested = requestedMemberIds.includes(c.id);
+                return (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      disabled={requested}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        // 이미 보낸 멤버는 다시 보내지 않는다.
+                        if (requested) return;
+                        setOpen(false);
+                        setQuery("");
+                        setCandidates([]);
+                        send({ receiverId: c.id }, `@${c.username}`);
+                      }}
+                      className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left font-mono text-sm text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-default disabled:hover:bg-transparent dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    >
+                      <span className={requested ? "text-zinc-400 dark:text-zinc-500" : ""}>
+                        @{c.username}
                       </span>
-                    )}
-                  </button>
-                </li>
-              ))}
+                      {requested && (
+                        <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-normal text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
+                          요청됨
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
@@ -165,25 +173,15 @@ export function RequestSection({
               </option>
             ))}
           </select>
-          {/* 이미 보낸 그룹이면 요청 버튼은 비활성화하고 재요청 버튼을 따로 둔다. */}
+          {/* 이미 보낸 그룹이면 요청 버튼을 비활성화한다(재요청 없음). */}
           <button
             type="button"
             disabled={pending || !groupId || selectedGroupRequested}
             onClick={sendToGroup}
             className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
           >
-            요청
+            {selectedGroupRequested ? "요청됨" : "요청"}
           </button>
-          {selectedGroupRequested && (
-            <button
-              type="button"
-              disabled={pending}
-              onClick={sendToGroup}
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
-            >
-              재요청
-            </button>
-          )}
         </div>
       )}
 

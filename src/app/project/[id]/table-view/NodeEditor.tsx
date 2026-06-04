@@ -15,6 +15,7 @@ import {
 } from "./actions";
 import { NodeCell } from "./NodeCell";
 import { NodeDetailPanel, type DetailNode } from "./NodeDetailPanel";
+import { RequirementDetailModal } from "./RequirementDetailModal";
 import { ModuleFilter } from "./ModuleFilter";
 import type { NodeStatus } from "@/generated/prisma/client";
 import {
@@ -204,6 +205,8 @@ export function NodeEditor({ projectId, modules }: Props) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
+  // 모달로 상세를 보는 요구사항 노드 id(null이면 닫힘).
+  const [modalId, setModalId] = useState<number | null>(null);
 
   // 모듈 필터: 선택된 모듈 id 집합. 초기엔 전체 선택.
   const [selectedModuleIds, setSelectedModuleIds] = useState<Set<number>>(
@@ -571,6 +574,7 @@ export function NodeEditor({ projectId, modules }: Props) {
             onOpenDetail={() =>
               router.push(`/project/${projectId}/node/${detailNode.id}`)
             }
+            onOpenModal={() => setModalId(detailNode.id)}
             onSaveDescription={(description) =>
               run(() => updateNode(detailNode.id, { description }))
             }
@@ -581,6 +585,14 @@ export function NodeEditor({ projectId, modules }: Props) {
           />
         )}
       </div>
+
+      {modalId !== null && (
+        <RequirementDetailModal
+          key={modalId}
+          nodeId={modalId}
+          onClose={() => setModalId(null)}
+        />
+      )}
     </div>
   );
 }
