@@ -8,6 +8,7 @@ import { TaskSection, type TaskItem } from "./TaskSection";
 import { StatusSection } from "./StatusSection";
 import { AssigneeSection, type AssigneeItem } from "./AssigneeSection";
 import { DescriptionSection } from "./DescriptionSection";
+import { IdCopyButtons } from "./IdCopyButtons";
 
 export const dynamic = "force-dynamic";
 
@@ -106,7 +107,9 @@ export default async function RequirementDetailPage({
         {node.name}
       </h1>
       <p className="mt-1 font-mono text-xs text-zinc-400">
-        #{node.id} · v{node.version}
+        #{node.id}
+        <IdCopyButtons nodeId={node.id} />
+        {" · "}v{node.version}
       </p>
 
       <DescriptionSection nodeId={node.id} description={node.description} />
