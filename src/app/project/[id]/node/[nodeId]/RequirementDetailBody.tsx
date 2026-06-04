@@ -8,6 +8,11 @@ import { StatusSection } from "./StatusSection";
 import { AssigneeSection, type AssigneeItem } from "./AssigneeSection";
 import { DescriptionSection } from "./DescriptionSection";
 import { RequestSection, type GroupOption } from "./RequestSection";
+import {
+  CompleteNotificationSection,
+  type SiblingRequirement,
+  type CompleteReservation,
+} from "./CompleteNotificationSection";
 import { IdCopyButtons } from "./IdCopyButtons";
 
 export type Ancestor = { id: number; name: string; level: string };
@@ -26,6 +31,9 @@ export type RequirementDetailData = {
   groups: GroupOption[];
   requestedMemberIds: number[];
   requestedGroupIds: number[];
+  // 완료 알림 예약 (12-complete-notification.md)
+  siblings: SiblingRequirement[];
+  reservations: CompleteReservation[];
 };
 
 const LEVEL_LABEL: Record<string, string> = {
@@ -75,6 +83,12 @@ export function RequirementDetailBody({ data }: { data: RequirementDetailData })
         groups={data.groups}
         requestedMemberIds={data.requestedMemberIds}
         requestedGroupIds={data.requestedGroupIds}
+      />
+      <CompleteNotificationSection
+        nodeId={data.id}
+        siblings={data.siblings}
+        groups={data.groups}
+        reservations={data.reservations}
       />
       <TaskSection nodeId={data.id} tasks={data.tasks} envNames={data.envNames} />
     </div>

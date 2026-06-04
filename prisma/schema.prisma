@@ -43,6 +43,7 @@ model Member {
   groups           MemberGroupParticipant[]
   sentRequests     RequestNotification[]    @relation("SentRequests")
   receivedRequests RequestNotification[]    @relation("ReceivedRequests")
+  completeReservations CompleteNotification[]
 }
 
 /// 프로젝트 정보.
@@ -98,6 +99,8 @@ model Node {
   assignees NodeAssignee[]
   tags      NodeTag[]
   requests  RequestNotification[]
+  completeTriggers CompleteNotification[] @relation("CompleteTrigger")
+  completeTargets  CompleteNotification[] @relation("CompleteTarget")
 }
 
 /// 프로젝트 단위로 관리되는 태그. 같은 프로젝트 내에서 이름은 유일하다.
@@ -195,6 +198,7 @@ model MemberGroup {
   project      Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   participants MemberGroupParticipant[]
   requests     RequestNotification[]
+  completeReservations CompleteNotification[]
 
   @@map("member_group")
 }
@@ -236,6 +240,27 @@ model RequestNotification {
   @@index([groupId])
   @@index([senderId])
   @@map("request_notification")
+}
+
+/// 완료 알림 예약. triggerNode(요구사항)가 DONE이 되면, targetNode(같은 기능 내 다음 요구사항)에
+/// 대한 확인 요청(RequestNotification)을 receiver/group에게 자동 발송한다.
+/// receiverId/groupId 중 정확히 하나만 채워진다(개인 또는 그룹).
+/// 참조: docs/domain/12-complete-notification.md
+model CompleteNotification {
+  id            Int  @id @default(autoincrement())
+  triggerNodeId Int // 이 노드가 DONE이 되면 발송된다.
+  targetNodeId  Int // 발송될 확인 요청이 가리키는 요구사항(다음 작업).
+  receiverId    Int? // 개인 수신자(그룹 예약이면 null)
+  groupId       Int? // 그룹 수신자(개인 예약이면 null)
+  createdAt     DateTime @default(now())
+
+  triggerNode Node         @relation("CompleteTrigger", fields: [triggerNodeId], references: [id], onDelete: Cascade)
+  targetNode  Node         @relation("CompleteTarget", fields: [targetNodeId], references: [id], onDelete: Cascade)
+  receiver    Member?      @relation(fields: [receiverId], references: [id], onDelete: Cascade)
+  group       MemberGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([triggerNodeId])
+  @@map("complete_notification")
 }
 
 /// 멤버가 로컬(CLI/MCP) 환경에서 사용할 액세스 토큰. 멤버당 1개.

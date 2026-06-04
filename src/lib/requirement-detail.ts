@@ -25,12 +25,18 @@ export async function loadRequirementDetail(
       status: true,
       projectId: true,
       // 상위 트리(기능→모듈)를 따라 올라가 빵부스러기를 만든다.
+      // children: 같은 기능 내 형제 요구사항(완료 알림 예약 SELECT용). (12)
       parent: {
         select: {
           id: true,
           name: true,
           level: true,
           parent: { select: { id: true, name: true, level: true } },
+          children: {
+            where: { level: "REQUIREMENT" },
+            orderBy: { id: "asc" },
+            select: { id: true, name: true },
+          },
         },
       },
       project: {
@@ -59,6 +65,19 @@ export async function loadRequirementDetail(
         select: { member: { select: { id: true, username: true } } },
       },
       requests: { select: { receiverId: true, groupId: true } },
+      // 완료 알림 예약(이 노드가 DONE이 되면 발송). (12)
+      completeTriggers: {
+        orderBy: { id: "asc" },
+        select: {
+          id: true,
+          targetNodeId: true,
+          targetNode: { select: { name: true } },
+          receiverId: true,
+          receiver: { select: { username: true } },
+          groupId: true,
+          group: { select: { name: true } },
+        },
+      },
     },
   });
 
@@ -96,6 +115,17 @@ export async function loadRequirementDetail(
     requestedGroupIds: node.requests
       .map((r) => r.groupId)
       .filter((x): x is number => x != null),
+    // 같은 기능 내 형제 요구사항(자기 자신 제외). (12)
+    siblings: (node.parent?.children ?? []).filter((c) => c.id !== node.id),
+    reservations: node.completeTriggers.map((r) => ({
+      id: r.id,
+      targetNodeId: r.targetNodeId,
+      targetNodeName: r.targetNode.name,
+      receiverId: r.receiverId,
+      receiverName: r.receiver?.username ?? null,
+      groupId: r.groupId,
+      groupName: r.group?.name ?? null,
+    })),
   };
 
   return { ok: true, projectId: node.projectId, data };
