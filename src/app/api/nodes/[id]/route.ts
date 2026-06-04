@@ -148,3 +148,95 @@ export async function GET(
     requirement,
   });
 }
+
+type NodePatchBody = { description?: unknown };
+
+/**
+ * PATCH /api/nodes/:id — 노드 설명(description) 업데이트
+ * Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
+ * Body: { description: string | null }
+ *
+ * - 인증·권한은 GET과 동일(토큰 7일, SUPER 우회 + projectMember).
+ * - 노드 레벨 제약 없음(MODULE/FEATURE/REQUIREMENT 모두 설명 가능).
+ * - description: 문자열이면 trim(빈 문자열은 null), null이면 설명 제거.
+ *   설명 수정은 도메인상 version+1 대상이다(웹 UI updateNode와 동일).
+ * - 성공: 200 { ok: true, node: { id, level, description, version } }
+ */
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  // 1) 토큰 추출·검증
+  const auth = await authenticateRequest(request);
+  if (!auth.ok) {
+    return NextResponse.json(
+      { ok: false, error: auth.error },
+      { status: auth.status },
+    );
+  }
+
+  // 2) id 파싱
+  const { id } = await params;
+  const nodeId = Number(id);
+  if (!Number.isInteger(nodeId)) {
+    return NextResponse.json(
+      { ok: false, error: "올바르지 않은 노드 id입니다." },
+      { status: 400 },
+    );
+  }
+
+  // 3) 바디 파싱 + description 검증 (string | null 만 허용)
+  let body: NodePatchBody;
+  try {
+    body = (await request.json()) as NodePatchBody;
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "요청 본문(JSON)을 해석할 수 없습니다." },
+      { status: 400 },
+    );
+  }
+  if (
+    body.description !== null &&
+    typeof body.description !== "string"
+  ) {
+    return NextResponse.json(
+      { ok: false, error: "description 은 문자열이어야 합니다." },
+      { status: 400 },
+    );
+  }
+  // 문자열이면 trim, 빈 문자열·null은 설명 제거(null 저장).
+  const description =
+    typeof body.description === "string"
+      ? body.description.trim() || null
+      : null;
+
+  // 4) 노드 조회
+  const node = await prisma.node.findUnique({
+    where: { id: nodeId },
+    select: { id: true, projectId: true },
+  });
+  if (!node) {
+    return NextResponse.json(
+      { ok: false, error: "존재하지 않는 노드입니다." },
+      { status: 404 },
+    );
+  }
+
+  // 5) 프로젝트 소속 검증 (SUPER 등급은 우회)
+  const access = await authorizeProjectAccess(auth.memberId, node.projectId);
+  if (!access.ok) {
+    return NextResponse.json(
+      { ok: false, error: access.error },
+      { status: access.status },
+    );
+  }
+
+  // 6) 갱신 (설명 수정은 version+1)
+  const updated = await prisma.node.update({
+    where: { id: nodeId },
+    data: { description, version: { increment: 1 } },
+    select: { id: true, level: true, description: true, version: true },
+  });
+
+  return NextResponse.json({ ok: true, node: updated });
+}
