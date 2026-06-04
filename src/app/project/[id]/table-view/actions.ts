@@ -194,6 +194,49 @@ export async function updateNode(
   return { ok: true, nodeId };
 }
 
+/**
+ * 요구사항(REQUIREMENT)을 다른 기능(FEATURE) 아래로 이동한다(부모 변경).
+ * 테이블뷰에서 요구사항을 기능 칸으로 드래그&드롭할 때 사용한다.
+ * - 이동 대상은 REQUIREMENT, 도착지는 같은 프로젝트의 FEATURE여야 한다.
+ * - 부모만 바꾸며 version은 올리지 않는다(이름·설명 수정이 아닌 구조 변경).
+ */
+export async function moveRequirement(
+  nodeId: number,
+  newFeatureId: number,
+): Promise<NodeActionResult> {
+  const [, node, feature] = await Promise.all([
+    assertAuthenticated(),
+    prisma.node.findUnique({
+      where: { id: nodeId },
+      select: { id: true, level: true, projectId: true, parentId: true },
+    }),
+    prisma.node.findUnique({
+      where: { id: newFeatureId },
+      select: { id: true, level: true, projectId: true },
+    }),
+  ]);
+  if (!node) return { ok: false, error: "존재하지 않는 노드입니다." };
+  if (node.level !== "REQUIREMENT") {
+    return { ok: false, error: "요구사항만 이동할 수 있습니다." };
+  }
+  if (!feature || feature.level !== "FEATURE") {
+    return { ok: false, error: "요구사항은 기능 아래로만 옮길 수 있습니다." };
+  }
+  if (feature.projectId !== node.projectId) {
+    return { ok: false, error: "다른 프로젝트로는 이동할 수 없습니다." };
+  }
+  // 같은 기능으로의 이동은 변경 없음.
+  if (node.parentId === feature.id) return { ok: true, nodeId };
+
+  await prisma.node.update({
+    where: { id: nodeId },
+    data: { parentId: feature.id },
+  });
+
+  revalidatePath(`/project/${node.projectId}/table-view`);
+  return { ok: true, nodeId };
+}
+
 /** 노드(MODULE/FEATURE 공통) 삭제. 하위 노드는 Cascade로 함께 삭제된다. */
 export async function deleteNode(nodeId: number): Promise<NodeActionResult> {
   const [, node] = await Promise.all([

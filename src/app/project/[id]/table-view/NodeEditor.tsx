@@ -12,6 +12,7 @@ import {
   updateNode,
   deleteNode,
   setNodeTags,
+  moveRequirement,
 } from "./actions";
 import { NodeCell } from "./NodeCell";
 import { NodeDetailPanel, type DetailNode } from "./NodeDetailPanel";
@@ -207,6 +208,9 @@ export function NodeEditor({ projectId, modules }: Props) {
   const [detailId, setDetailId] = useState<number | null>(null);
   // 모달로 상세를 보는 요구사항 노드 id(null이면 닫힘).
   const [modalId, setModalId] = useState<number | null>(null);
+  // 드래그 중인 요구사항 id / 드롭 하이라이트 중인 기능 id.
+  const [draggingReqId, setDraggingReqId] = useState<number | null>(null);
+  const [dropFeatureId, setDropFeatureId] = useState<number | null>(null);
 
   // 모듈 필터: 선택된 모듈 id 집합. 초기엔 전체 선택.
   const [selectedModuleIds, setSelectedModuleIds] = useState<Set<number>>(
@@ -261,6 +265,12 @@ export function NodeEditor({ projectId, modules }: Props) {
       if (!result.ok) setError(result.error ?? "작업에 실패했습니다.");
       router.refresh();
     });
+  }
+
+  // 드래그한 요구사항을 다른 기능 아래로 이동한다.
+  function moveReq(reqId: number, featureId: number) {
+    if (!Number.isInteger(reqId)) return;
+    run(() => moveRequirement(reqId, featureId));
   }
 
   // 트리에서 detailId에 해당하는 노드를 찾아 상세 패널 데이터로 만든다.
@@ -419,7 +429,37 @@ export function NodeEditor({ projectId, modules }: Props) {
                 ) : (
                   <>
                     {row.featureCell && (
-                      <td className={cellCls} rowSpan={row.featureCell.rowSpan}>
+                      <td
+                        className={`${cellCls} ${
+                          dropFeatureId === row.featureCell.id
+                            ? "bg-blue-50/60 outline outline-2 -outline-offset-2 outline-blue-400 dark:bg-blue-950/30"
+                            : ""
+                        }`}
+                        rowSpan={row.featureCell.rowSpan}
+                        onDragOver={(e) => {
+                          // 요구사항을 드래그하는 중일 때만 드롭을 허용한다.
+                          if (draggingReqId == null) return;
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                          if (dropFeatureId !== row.featureCell!.id) {
+                            setDropFeatureId(row.featureCell!.id);
+                          }
+                        }}
+                        onDragLeave={(e) => {
+                          // 셀 내부 자식으로 이동하는 경우는 무시(셀을 완전히 벗어날 때만 해제).
+                          if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                          setDropFeatureId((cur) =>
+                            cur === row.featureCell!.id ? null : cur,
+                          );
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setDropFeatureId(null);
+                          const reqId = Number(e.dataTransfer.getData("text/plain"));
+                          setDraggingReqId(null);
+                          moveReq(reqId, row.featureCell!.id);
+                        }}
+                      >
                         <NodeCell
                           value={row.featureCell.name}
                           level="FEATURE"
@@ -474,6 +514,26 @@ export function NodeEditor({ projectId, modules }: Props) {
                     {/* 요구사항 칸 */}
                     {row.third.kind === "req" && (
                       <td className={cellCls}>
+                        <div className="flex items-center gap-1">
+                          <span
+                            draggable
+                            onDragStart={(e) => {
+                              const reqId = (row.third as { node: ReqNode }).node.id;
+                              e.dataTransfer.setData("text/plain", String(reqId));
+                              e.dataTransfer.effectAllowed = "move";
+                              setDraggingReqId(reqId);
+                            }}
+                            onDragEnd={() => {
+                              setDraggingReqId(null);
+                              setDropFeatureId(null);
+                            }}
+                            title="드래그하여 다른 기능으로 이동"
+                            aria-label="요구사항 이동 핸들"
+                            className="shrink-0 cursor-grab select-none rounded px-1 py-1 text-zinc-300 transition hover:bg-zinc-100 hover:text-zinc-500 active:cursor-grabbing dark:text-zinc-600 dark:hover:bg-zinc-800"
+                          >
+                            ⠿
+                          </span>
+                          <div className="min-w-0 flex-1">
                         <NodeCell
                           value={row.third.node.name}
                           level="REQUIREMENT"
@@ -495,6 +555,8 @@ export function NodeEditor({ projectId, modules }: Props) {
                             )
                           }
                         />
+                          </div>
+                        </div>
                         {/* ENDPOINT 정보가 있으면 노출 (MODULE·FEATURE와 동일) */}
                         {row.third.node.endpoint && (
                           <p className="mt-1 truncate font-mono text-[11px] text-zinc-500 dark:text-zinc-400">
