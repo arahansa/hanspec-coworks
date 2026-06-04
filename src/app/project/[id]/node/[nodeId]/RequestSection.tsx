@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { sendRequest } from "./actions";
 
 export type GroupOption = { id: number; name: string };
@@ -11,9 +12,19 @@ type Props = {
   nodeId: number;
   /** 노드가 속한 프로젝트의 그룹 목록. */
   groups: GroupOption[];
+  /** 이미 확인 요청을 보낸 개인 멤버 id 목록. */
+  requestedMemberIds: number[];
+  /** 이미 확인 요청을 보낸 그룹 id 목록. */
+  requestedGroupIds: number[];
 };
 
-export function RequestSection({ nodeId, groups }: Props) {
+export function RequestSection({
+  nodeId,
+  groups,
+  requestedMemberIds,
+  requestedGroupIds,
+}: Props) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -53,6 +64,8 @@ export function RequestSection({ nodeId, groups }: Props) {
         return;
       }
       setDone(`${label}에게 확인 요청을 보냈습니다.`);
+      // 서버에서 "이미 보낸 대상" 목록을 다시 받아와 요청됨 표시를 갱신한다.
+      router.refresh();
     });
   }
 
@@ -60,9 +73,12 @@ export function RequestSection({ nodeId, groups }: Props) {
     const id = Number(groupId);
     if (!Number.isInteger(id) || pending) return;
     const name = groups.find((g) => g.id === id)?.name ?? "그룹";
+    // 선택은 유지한다(재요청 상태를 계속 보여주기 위해).
     send({ groupId: id }, name);
-    setGroupId("");
   }
+
+  const selectedGroupRequested =
+    groupId !== "" && requestedGroupIds.includes(Number(groupId));
 
   const tabCls = (active: boolean) =>
     `rounded-md px-3 py-1.5 text-sm font-medium transition ${
@@ -117,9 +133,14 @@ export function RequestSection({ nodeId, groups }: Props) {
                       setCandidates([]);
                       send({ receiverId: c.id }, `@${c.username}`);
                     }}
-                    className="block w-full px-3 py-2 text-left font-mono text-sm text-zinc-700 transition hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left font-mono text-sm text-zinc-700 transition hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800"
                   >
-                    @{c.username}
+                    <span>@{c.username}</span>
+                    {requestedMemberIds.includes(c.id) && (
+                      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-normal text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
+                        요청됨 · 재요청
+                      </span>
+                    )}
                   </button>
                 </li>
               ))}
@@ -129,7 +150,7 @@ export function RequestSection({ nodeId, groups }: Props) {
       ) : groups.length === 0 ? (
         <p className="text-sm text-zinc-400">이 프로젝트에 그룹이 없습니다.</p>
       ) : (
-        <div className="flex max-w-xs items-center gap-2">
+        <div className="flex max-w-sm items-center gap-2">
           <select
             value={groupId}
             disabled={pending}
@@ -140,17 +161,29 @@ export function RequestSection({ nodeId, groups }: Props) {
             {groups.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.name}
+                {requestedGroupIds.includes(g.id) ? " (요청됨)" : ""}
               </option>
             ))}
           </select>
+          {/* 이미 보낸 그룹이면 요청 버튼은 비활성화하고 재요청 버튼을 따로 둔다. */}
           <button
             type="button"
-            disabled={pending || !groupId}
+            disabled={pending || !groupId || selectedGroupRequested}
             onClick={sendToGroup}
             className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
           >
             요청
           </button>
+          {selectedGroupRequested && (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={sendToGroup}
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            >
+              재요청
+            </button>
+          )}
         </div>
       )}
 
