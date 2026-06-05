@@ -5,6 +5,7 @@
 
 import { useState } from "react";
 import type { NodeStatus } from "@/generated/prisma/client";
+import { DescriptionEditor } from "@/components/markdown/DescriptionEditor";
 import { TagInput } from "./TagInput";
 import { StatusSection } from "@/app/project/[id]/node/[nodeId]/StatusSection";
 import {
@@ -63,9 +64,6 @@ export function NodeDetailPanel({
   onSaveEndpoint,
   onSaveTags,
 }: Props) {
-  const [draft, setDraft] = useState(node.description ?? "");
-  const dirty = draft.trim() !== (node.description ?? "").trim();
-
   const [endpointDraft, setEndpointDraft] = useState(node.endpoint ?? "");
   const endpointDirty =
     endpointDraft.trim() !== (node.endpoint ?? "").trim();
@@ -165,25 +163,15 @@ export function NodeDetailPanel({
       </dl>
 
       <div className="mt-5">
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">설명</span>
-          <textarea
-            value={draft}
-            rows={6}
-            disabled={pending}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="이 노드에 대한 설명을 입력하세요."
-            className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-500 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-          />
-        </label>
-        <button
-          type="button"
-          disabled={pending || !dirty}
-          onClick={() => onSaveDescription(draft)}
-          className="mt-2 rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-        >
-          {pending ? "저장 중…" : "설명 저장"}
-        </button>
+        <span className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          설명
+        </span>
+        <DescriptionEditor
+          value={node.description}
+          pending={pending}
+          onSave={onSaveDescription}
+          placeholder="이 노드에 대한 설명을 마크다운으로 입력하세요."
+        />
       </div>
 
       {/* MODULE·FEATURE·REQUIREMENT: ENDPOINT (09-feature.md) */}

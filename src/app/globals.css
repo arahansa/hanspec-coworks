@@ -24,3 +24,241 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ──────────────────────────────────────────────────────────
+   마크다운 렌더링 (노드 description) — docs/domain/03-node.md
+   @tailwindcss/typography(prose) 의존성을 추가하지 않고 직접 정의한다.
+   ────────────────────────────────────────────────────────── */
+.markdown-body {
+  font-size: 0.875rem; /* text-sm */
+  line-height: 1.65;
+  color: #18181b; /* zinc-900 */
+  word-break: break-word;
+}
+@media (prefers-color-scheme: dark) {
+  .markdown-body {
+    color: #f4f4f5; /* zinc-100 */
+  }
+}
+
+.markdown-body > :first-child {
+  margin-top: 0;
+}
+.markdown-body > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 1em 0 0.5em;
+}
+.markdown-body h1 {
+  font-size: 1.4em;
+}
+.markdown-body h2 {
+  font-size: 1.25em;
+}
+.markdown-body h3 {
+  font-size: 1.1em;
+}
+
+.markdown-body p,
+.markdown-body ul,
+.markdown-body ol,
+.markdown-body blockquote,
+.markdown-body table,
+.markdown-body pre {
+  margin: 0.6em 0;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  padding-left: 1.4em;
+}
+.markdown-body ul {
+  list-style: disc;
+}
+.markdown-body ol {
+  list-style: decimal;
+}
+.markdown-body li {
+  margin: 0.2em 0;
+}
+.markdown-body li > input[type="checkbox"] {
+  margin-right: 0.4em;
+}
+
+.markdown-body a {
+  color: #2563eb; /* blue-600 */
+  text-decoration: underline;
+}
+@media (prefers-color-scheme: dark) {
+  .markdown-body a {
+    color: #60a5fa; /* blue-400 */
+  }
+}
+
+.markdown-body blockquote {
+  border-left: 3px solid #d4d4d8; /* zinc-300 */
+  padding-left: 0.9em;
+  color: #52525b; /* zinc-600 */
+}
+@media (prefers-color-scheme: dark) {
+  .markdown-body blockquote {
+    border-left-color: #3f3f46; /* zinc-700 */
+    color: #a1a1aa; /* zinc-400 */
+  }
+}
+
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid #e4e4e7; /* zinc-200 */
+  margin: 1.2em 0;
+}
+@media (prefers-color-scheme: dark) {
+  .markdown-body hr {
+    border-top-color: #27272a; /* zinc-800 */
+  }
+}
+
+/* 인라인 코드 */
+.markdown-body code {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.85em;
+  background: #f4f4f5; /* zinc-100 */
+  padding: 0.15em 0.35em;
+  border-radius: 0.25rem;
+}
+@media (prefers-color-scheme: dark) {
+  .markdown-body code {
+    background: #27272a; /* zinc-800 */
+  }
+}
+
+/* 코드 블록 */
+.markdown-body pre {
+  background: #f4f4f5; /* zinc-100 */
+  border: 1px solid #e4e4e7; /* zinc-200 */
+  border-radius: 0.5rem;
+  padding: 0.9em 1em;
+  overflow-x: auto;
+}
+.markdown-body pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 0.85em;
+}
+@media (prefers-color-scheme: dark) {
+  .markdown-body pre {
+    background: #18181b; /* zinc-900 */
+    border-color: #27272a; /* zinc-800 */
+  }
+}
+
+/* 표 */
+.markdown-body table {
+  border-collapse: collapse;
+  width: auto;
+  display: block;
+  overflow-x: auto;
+}
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid #e4e4e7; /* zinc-200 */
+  padding: 0.4em 0.7em;
+  text-align: left;
+}
+.markdown-body th {
+  background: #f4f4f5; /* zinc-100 */
+  font-weight: 600;
+}
+@media (prefers-color-scheme: dark) {
+  .markdown-body th,
+  .markdown-body td {
+    border-color: #27272a; /* zinc-800 */
+  }
+  .markdown-body th {
+    background: #27272a; /* zinc-800 */
+  }
+}
+
+/* ──────────────────────────────────────────────────────────
+   highlight.js — github 테마(라이트/다크). rehype-highlight가
+   .hljs-* 클래스를 붙인다. 별도 CSS 파일 import 대신 직접 정의해
+   prefers-color-scheme로 다크모드를 함께 처리한다.
+   ────────────────────────────────────────────────────────── */
+.markdown-body .hljs-comment,
+.markdown-body .hljs-quote {
+  color: #6a737d;
+}
+.markdown-body .hljs-keyword,
+.markdown-body .hljs-selector-tag,
+.markdown-body .hljs-type {
+  color: #d73a49;
+}
+.markdown-body .hljs-string,
+.markdown-body .hljs-doctag,
+.markdown-body .hljs-regexp {
+  color: #032f62;
+}
+.markdown-body .hljs-title,
+.markdown-body .hljs-section,
+.markdown-body .hljs-name {
+  color: #6f42c1;
+}
+.markdown-body .hljs-literal,
+.markdown-body .hljs-number,
+.markdown-body .hljs-built_in,
+.markdown-body .hljs-attr,
+.markdown-body .hljs-attribute {
+  color: #005cc5;
+}
+.markdown-body .hljs-symbol,
+.markdown-body .hljs-bullet,
+.markdown-body .hljs-meta {
+  color: #e36209;
+}
+.markdown-body .hljs-emphasis {
+  font-style: italic;
+}
+.markdown-body .hljs-strong {
+  font-weight: 600;
+}
+
+@media (prefers-color-scheme: dark) {
+  .markdown-body .hljs-comment,
+  .markdown-body .hljs-quote {
+    color: #8b949e;
+  }
+  .markdown-body .hljs-keyword,
+  .markdown-body .hljs-selector-tag,
+  .markdown-body .hljs-type {
+    color: #ff7b72;
+  }
+  .markdown-body .hljs-string,
+  .markdown-body .hljs-doctag,
+  .markdown-body .hljs-regexp {
+    color: #a5d6ff;
+  }
+  .markdown-body .hljs-title,
+  .markdown-body .hljs-section,
+  .markdown-body .hljs-name {
+    color: #d2a8ff;
+  }
+  .markdown-body .hljs-literal,
+  .markdown-body .hljs-number,
+  .markdown-body .hljs-built_in,
+  .markdown-body .hljs-attr,
+  .markdown-body .hljs-attribute {
+    color: #79c0ff;
+  }
+  .markdown-body .hljs-symbol,
+  .markdown-body .hljs-bullet,
+  .markdown-body .hljs-meta {
+    color: #ffa657;
+  }
+}

@@ -1,7 +1,7 @@
 ---
-version: "1.4"
+version: "1.5"
 created: "2026-05-30"
-updated: "2026-06-02"
+updated: "2026-06-05"
 author: "arahansa"
 ---
 
@@ -12,7 +12,7 @@ author: "arahansa"
 id: 멤버의 고유 식별자(숫자) auto increment
 name : 노드 이름(varchar 255)
 level : 노드 레벨 (varchar 20)(ENUM) - 아래에 설명
-description : 노드 설명 (text)
+description : 노드 설명 (text) — **마크다운(Markdown) 원본**을 그대로 저장한다 (아래 "설명 마크다운 렌더링" 참고)
 parent_id : 상위 노드의 id (number)
 project_id : 노드가 속한 프로젝트의 id (number)
 version : 버전 (number)
@@ -108,4 +108,20 @@ model Node {
 - **담당자**: `node_assignee` 조인 테이블(복합 PK `(nodeId, memberId)`)로 한 REQUIREMENT에 여러 담당자 지정. 상세에서 `@` 검색 자동완성으로 추가/제거.
 - **멤버 API**: `GET /api/members?q=<prefix>` — username prefix(대소문자 무시) 검색, 비로그인 401. 비밀번호 등 민감 필드 미반환.
 - **산출 코드**: `prisma/schema.prisma`(NodeStatus·Node.status·NodeAssignee), `src/app/api/members/route.ts`, `src/app/project/[id]/node/[nodeId]/{actions.ts,StatusSection.tsx,AssigneeSection.tsx,node-status.ts,page.tsx}`.
+
+
+### 설명 마크다운 렌더링 - 구현 완료 (2026-06-05)
+
+노드 `description`을 **마크다운으로 작성하고 렌더링**한다. 별도의 마크다운 전용 컬럼/영역을 두지 않고, 기존 `description`(text) 컬럼에 마크다운 원본을 그대로 저장한다(마크다운은 일반 텍스트의 상위호환이므로 plain text도 유효). **스키마/마이그레이션 변경 없음.**
+
+- **방식(결정)**: A안 — 같은 `description` 컬럼에 마크다운 원본 저장 + 보기 시 HTML 렌더링. B안(별도 컬럼 분리)은 불필요한 복잡도라 채택하지 않았다.
+- **편집/보기 UX**: "보기(렌더링) 기본 + `편집` 버튼으로 textarea 전환" (GitHub 코멘트 방식). 저장하면 다시 보기로 돌아간다. 빈 설명은 "설명이 없습니다."로 표시.
+- **지원 문법**: GFM(`remark-gfm`) — 코드블록(```), 표, 체크박스, 굵게/리스트 등. 코드블록은 `rehype-highlight`로 언어별 구문 하이라이팅(github 라이트/다크 테마).
+- **XSS 안전성**: `react-markdown`은 기본적으로 raw HTML을 통과시키지 않는다(`rehype-raw` 미사용). 다중 사용자 협업 앱이므로 raw HTML 허용은 켜지 않는다.
+- **적용 위치(3곳 공통)**: 요구사항 상세 페이지, 상세 모달, 테이블뷰 드로어 패널. 공용 컴포넌트(`DescriptionEditor`/`MarkdownView`)로 일관 처리한다.
+- **산출 코드**: `src/components/markdown/{MarkdownView,DescriptionEditor}.tsx`, `src/app/project/[id]/node/[nodeId]/DescriptionSection.tsx`, `src/app/project/[id]/table-view/NodeDetailPanel.tsx`, `src/app/globals.css`(`.markdown-body` + hljs 테마). 의존성: `react-markdown`, `remark-gfm`, `rehype-highlight`, `highlight.js`.
+
+### 추가 기능
+
+
 
