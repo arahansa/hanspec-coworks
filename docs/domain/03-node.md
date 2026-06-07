@@ -1,7 +1,7 @@
 ---
-version: "1.5"
+version: "1.6"
 created: "2026-05-30"
-updated: "2026-06-05"
+updated: "2026-06-08"
 author: "arahansa"
 ---
 
@@ -126,6 +126,15 @@ model Node {
 그리고 별도의 페이지를 만들어서, 오늘 완료된 작업 목록들 보여지게 하고 싶어.
 해당 페이지의 상단에 검색영역을 두고 달력을 하나 둬서, 특정 기간내에 완료된 작업들도 같이 보여지게 하고 싶어.
 검색영역에는 체크박스 - 오늘완료된 작업목록 보기와 달력 이렇게 되면 될 것같아.
+
+### 추가 기능(완료 시각·완료 목록 페이지) - 구현 완료 (2026-06-08)
+
+REQUIREMENT가 DONE이 될 때 완료 시각을 저장하고, 프로젝트별 "완료된 작업" 목록 페이지를 추가했다. 설계: `docs/superpowers/specs/2026-06-08-completed-tasks-page-design.md`.
+
+- **완료 시각**: `Node.completedAt`(`DateTime?`) 컬럼 추가. "마지막 DONE 시각" 의미 — 비DONE→DONE 전환 시 `now()`, DONE→다른 상태 시 `null`로 해제. `version`과 무관(상태 변경은 version 미증가). `updateNodeStatus`의 기존 단일 update에 분기 포함(추가 조회 없음).
+- **목록 페이지**: `/project/[id]/completed`. 서버 컴포넌트가 DONE인 REQUIREMENT를 `completedAt desc`로 조회한다. 각 항목에 소속 경로(`모듈 › 기능`)·완료 시각(`YYYY-MM-DD HH:mm`)·담당자·상세 링크를 표시. 좌측 네비(`PROJECT_TASK_ITEMS`)에 "완료된 작업" 추가.
+- **검색영역(URL 쿼리 필터)**: 체크박스 "오늘 완료된 작업 보기"(`today=1`, 기본 ON) + 네이티브 `date input` 2개(`from`/`to`). 체크박스 ON이면 date input 비활성·무시(today 우선). 기간은 `from` 00:00 ~ `to` 당일 포함. 날짜 경계는 서버 로컬 타임존 기준(다중 사용자/원격 타임존 정확성은 비범위).
+- **산출 코드**: `prisma/schema.prisma`(Node.completedAt), `src/app/project/[id]/node/[nodeId]/actions.ts`(updateNodeStatus), `src/app/project/[id]/completed/{page.tsx,CompletedSearchForm.tsx}`, `src/components/LeftNav.tsx`.
 
 
 

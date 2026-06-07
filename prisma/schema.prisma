@@ -85,6 +85,7 @@ model Node {
   level       NodeLevel
   description String?    @db.Text
   status      NodeStatus @default(DRAFT)
+  completedAt DateTime?  // 마지막 DONE 전환 시각. DONE이 아니면 null. (03-node.md 추가기능)
   endpoint    String?    @db.VarChar(255) // FEATURE의 API 엔드포인트. (09-feature.md)
   parentId    Int? // self-ref. 최상위(MODULE)는 null
   projectId   Int

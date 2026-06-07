@@ -169,13 +169,23 @@ export async function updateNodeStatus(
     select: { status: true },
   });
 
+  // completedAt은 단일 update에 포함한다(추가 조회 없음). (03-node.md 추가기능)
+  // - 비DONE→DONE: 완료 시각 기록 / DONE→다른 상태: null로 해제 / 변화 없음: 유지.
+  const toDone = status === "DONE" && current?.status !== "DONE";
+  const fromDone = status !== "DONE" && current?.status === "DONE";
+  const data = toDone
+    ? { status, completedAt: new Date() }
+    : fromDone
+      ? { status, completedAt: null }
+      : { status };
+
   await prisma.node.update({
     where: { id: check.node.id },
-    data: { status },
+    data,
   });
 
   // 비DONE→DONE 전환 시 예약된 완료 알림을 발송한다. (12-complete-notification.md)
-  if (status === "DONE" && current?.status !== "DONE") {
+  if (toDone) {
     await fireCompleteNotifications(check.node.id, member.id);
   }
 
