@@ -122,6 +122,10 @@ model Node {
 - **산출 코드**: `src/components/markdown/{MarkdownView,DescriptionEditor}.tsx`, `src/app/project/[id]/node/[nodeId]/DescriptionSection.tsx`, `src/app/project/[id]/table-view/NodeDetailPanel.tsx`, `src/app/globals.css`(`.markdown-body` + hljs 테마). 의존성: `react-markdown`, `remark-gfm`, `rehype-highlight`, `highlight.js`.
 
 ### 추가 기능
+어떤 요구사항(REQUIREMENT)이 상태가 완료(DONE)로 변경되면, 완료된 시간을 저장하고 싶어. 
+그리고 별도의 페이지를 만들어서, 오늘 완료된 작업 목록들 보여지게 하고 싶어.
+해당 페이지의 상단에 검색영역을 두고 달력을 하나 둬서, 특정 기간내에 완료된 작업들도 같이 보여지게 하고 싶어.
+검색영역에는 체크박스 - 오늘완료된 작업목록 보기와 달력 이렇게 되면 될 것같아.
 
 
 

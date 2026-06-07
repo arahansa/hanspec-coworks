@@ -1,5 +1,5 @@
 ---
-version: "1.0"
+version: "1.1"
 created: "2026-06-08"
 updated: "2026-06-08"
 author: "arahansa"
@@ -51,7 +51,7 @@ model Node {
 - DONE → 다른 상태: `data: { status, completedAt: null }`
 - 변화 없음(DONE→DONE, 비DONE→같은 비DONE): `completedAt`은 건드리지 않음(`data: { status }`)
 
-DONE 전환 시 기존 `fireCompleteNotifications` 호출 분기는 그대로 둔다.
+기존 코드는 `current.status`를 `prisma.node.update` **이전에** 조회한다. 이 순서를 유지하고, `current.status`와 새 `status`를 비교해 `data` 객체를 구성한 뒤 **단일 update 호출**에 `completedAt`을 포함시킨다(추가 조회 금지). DONE 전환 시 기존 `fireCompleteNotifications` 호출 분기는 그대로 둔다.
 
 ## 라우팅 & 페이지
 
@@ -61,7 +61,8 @@ DONE 전환 시 기존 `fireCompleteNotifications` 호출 분기는 그대로 �
 - 로그인(`getCurrentMember`, 없으면 `/signin`) + 프로젝트 존재(`notFound`) 검증 — 기존 페이지와 동일.
 - Next.js 16: `params`·`searchParams` 모두 `Promise`.
 - **searchParams 해석**:
-  - `today=1` 또는 `today`/`from`/`to` 모두 없음 → 오늘(체크박스 ON). 기본값.
+  - `today` 파라미터가 있으면(`today=1`) → 오늘 모드. `from`/`to`가 함께 있어도 today가 우선(체크박스 ON이면 date input 무시). 손으로 편집한 URL 방어.
+  - `today`/`from`/`to` 모두 없음 → 오늘(체크박스 ON). 기본값.
   - `today`가 없고 `from`/`to`가 있으면 → 기간 검색.
 - **날짜 경계(서버 로컬 타임존)**:
   - 오늘: `start = 오늘 00:00:00`, `end = 내일 00:00:00`. `completedAt: { gte: start, lt: end }`.
@@ -126,3 +127,8 @@ DONE 전환 시 기존 `fireCompleteNotifications` 호출 분기는 그대로 �
 - 완료 시각의 전체 이력(audit log) — "마지막 DONE 시각" 단일 값만 저장.
 - CSV/엑셀 내보내기, 페이지네이션(현재 데이터 규모상 불필요).
 - REQUIREMENT 외 레벨의 완료 시각.
+- 다중 사용자/원격 타임존 정확성. "오늘"·기간 경계는 서버 로컬 타임존 단일 기준으로만 계산한다.
+
+## 구현 참고
+
+- `/completed` 페이지는 `force-dynamic`이므로 매 요청 재조회된다. 따라서 `updateNodeStatus`에서 `/completed` 경로에 대한 `revalidatePath`는 **불필요**(추가하지 않는다).
