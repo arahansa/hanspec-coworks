@@ -5,6 +5,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useRequirementMutation } from "./RequirementMutationContext";
 import { createTask, updateTask } from "./actions";
 import { EndpointInput } from "./EndpointInput";
 
@@ -29,6 +30,7 @@ const inputCls =
 
 export function TaskSection({ nodeId, tasks, envNames }: Props) {
   const router = useRouter();
+  const { onMutated } = useRequirementMutation();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -51,6 +53,7 @@ export function TaskSection({ nodeId, tasks, envNames }: Props) {
       setName("");
       setEndpoint("");
       router.refresh();
+      onMutated();
     });
   }
 
@@ -81,6 +84,7 @@ export function TaskSection({ nodeId, tasks, envNames }: Props) {
                     return;
                   }
                   router.refresh();
+                  onMutated();
                 })
               }
             />

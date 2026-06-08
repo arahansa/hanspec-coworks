@@ -2,11 +2,12 @@
 // 패널의 모달 아이콘 클릭 시, 상세 페이지와 동일한 본문을 모달로 띄운다.
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   RequirementDetailBody,
   type RequirementDetailData,
 } from "@/app/project/[id]/node/[nodeId]/RequirementDetailBody";
+import { RequirementMutationProvider } from "@/app/project/[id]/node/[nodeId]/RequirementMutationContext";
 
 type Props = { nodeId: number; onClose: () => void };
 
@@ -28,30 +29,32 @@ export function RequirementDetailModal({ nodeId, onClose }: Props) {
     };
   }, [onClose]);
 
-  // nodeId가 바뀌면 상세 데이터를 다시 불러온다.
-  useEffect(() => {
-    let cancelled = false;
-    setData(null);
-    setError(null);
-    (async () => {
+  // 상세 데이터를 불러온다. clearFirst=true면 먼저 "불러오는 중…"을 표시(최초 로딩용).
+  // 섹션의 서버 액션 후 재조회(onMutated)는 clearFirst=false로 화면 깜빡임을 피한다.
+  const load = useCallback(
+    async (clearFirst: boolean) => {
+      if (clearFirst) setData(null);
+      setError(null);
       try {
         const res = await fetch(`/api/nodes/${nodeId}/requirement-detail`);
         const json: { ok: boolean; data?: RequirementDetailData; error?: string } =
           await res.json();
-        if (cancelled) return;
         if (!json.ok || !json.data) {
           setError(json.error ?? "상세를 불러오지 못했습니다.");
           return;
         }
         setData(json.data);
       } catch {
-        if (!cancelled) setError("상세를 불러오지 못했습니다.");
+        setError("상세를 불러오지 못했습니다.");
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [nodeId]);
+    },
+    [nodeId],
+  );
+
+  // nodeId가 바뀌면 상세 데이터를 처음부터 다시 불러온다.
+  useEffect(() => {
+    load(true);
+  }, [load]);
 
   return (
     <div
@@ -81,7 +84,9 @@ export function RequirementDetailModal({ nodeId, onClose }: Props) {
             불러오는 중…
           </p>
         ) : (
-          <RequirementDetailBody data={data} />
+          <RequirementMutationProvider value={{ onMutated: () => load(false) }}>
+            <RequirementDetailBody data={data} />
+          </RequirementMutationProvider>
         )}
       </div>
     </div>

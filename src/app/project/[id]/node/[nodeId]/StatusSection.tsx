@@ -5,6 +5,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { NodeStatus } from "@/generated/prisma/client";
+import { useRequirementMutation } from "./RequirementMutationContext";
 import { updateNodeStatus } from "./actions";
 import {
   NODE_STATUS_BADGE_CLASS,
@@ -19,6 +20,7 @@ type Props = {
 
 export function StatusSection({ nodeId, status }: Props) {
   const router = useRouter();
+  const { onMutated } = useRequirementMutation();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -32,6 +34,7 @@ export function StatusSection({ nodeId, status }: Props) {
         return;
       }
       router.refresh();
+      onMutated();
     });
   }
 

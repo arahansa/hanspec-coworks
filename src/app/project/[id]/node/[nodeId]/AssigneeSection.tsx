@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useRequirementMutation } from "./RequirementMutationContext";
 import { addAssignee, removeAssignee } from "./actions";
 
 export type AssigneeItem = { id: number; username: string };
@@ -17,6 +18,7 @@ type Props = {
 
 export function AssigneeSection({ nodeId, assignees }: Props) {
   const router = useRouter();
+  const { onMutated } = useRequirementMutation();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -56,6 +58,7 @@ export function AssigneeSection({ nodeId, assignees }: Props) {
         return;
       }
       router.refresh();
+      onMutated();
     });
   }
 
@@ -68,6 +71,7 @@ export function AssigneeSection({ nodeId, assignees }: Props) {
         return;
       }
       router.refresh();
+      onMutated();
     });
   }
 

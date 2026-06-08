@@ -6,6 +6,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { DescriptionEditor } from "@/components/markdown/DescriptionEditor";
+import { useRequirementMutation } from "./RequirementMutationContext";
 import { updateNodeDescription } from "./actions";
 
 type Props = {
@@ -15,6 +16,7 @@ type Props = {
 
 export function DescriptionSection({ nodeId, description }: Props) {
   const router = useRouter();
+  const { onMutated } = useRequirementMutation();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -27,6 +29,7 @@ export function DescriptionSection({ nodeId, description }: Props) {
         return;
       }
       router.refresh();
+      onMutated();
     });
   }
 

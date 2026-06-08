@@ -5,6 +5,7 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useRequirementMutation } from "./RequirementMutationContext";
 import { addRelation, removeRelation } from "./actions";
 
 export type RelatedItem = { id: number; name: string };
@@ -19,6 +20,7 @@ type Props = {
 
 export function RelatedRequirementSection({ nodeId, projectId, related }: Props) {
   const router = useRouter();
+  const { onMutated } = useRequirementMutation();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -60,6 +62,7 @@ export function RelatedRequirementSection({ nodeId, projectId, related }: Props)
         return;
       }
       router.refresh();
+      onMutated();
     });
   }
 
@@ -72,6 +75,7 @@ export function RelatedRequirementSection({ nodeId, projectId, related }: Props)
         return;
       }
       router.refresh();
+      onMutated();
     });
   }
 

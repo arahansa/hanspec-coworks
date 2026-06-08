@@ -5,6 +5,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useRequirementMutation } from "./RequirementMutationContext";
 import type { GroupOption } from "./RequestSection";
 import {
   createCompleteNotification,
@@ -38,6 +39,7 @@ export function CompleteNotificationSection({
   reservations,
 }: Props) {
   const router = useRouter();
+  const { onMutated } = useRequirementMutation();
   const [expanded, setExpanded] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +87,7 @@ export function CompleteNotificationSection({
       setQuery("");
       setCandidates([]);
       router.refresh();
+      onMutated();
     });
   }
 
@@ -97,6 +100,7 @@ export function CompleteNotificationSection({
         return;
       }
       router.refresh();
+      onMutated();
     });
   }
 
