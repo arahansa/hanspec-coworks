@@ -1,7 +1,7 @@
 ---
-version: "1.3"
+version: "1.4"
 created: "2026-06-02"
-updated: "2026-06-04"
+updated: "2026-06-08"
 author: "arahansa"
 ---
 
@@ -33,6 +33,10 @@ Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
   - REQUIREMENT → `requirement` + `feature` + `module`
   - FEATURE → `feature` + `module` (requirement=null)
   - MODULE → `module` (feature/requirement=null)
+- **관련 요구사항(`related`)**: 대상 노드에 연결된 "관련 요구사항"을 함께 반환한다(무방향).
+  연결은 REQUIREMENT끼리만 존재하므로 FEATURE/MODULE에서는 빈 배열이다. 각 항목은
+  `id·name·description·status·endpoint`를 담아, 연결된 요구사항의 API 정보(endpoint 등)를
+  추가 호출 없이 바로 쓸 수 있다. (v1.4)
 
 ## 응답
 
@@ -44,9 +48,14 @@ Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
   "projectId": 6,
   "module":      { "id": 12, "name": "...", "description": "..." },
   "feature":     { "id": 60, "name": "...", "description": "...", "endpoint": "GET /api/..." },
-  "requirement": { "id": 75, "name": "...", "description": "...", "status": "IN_PROGRESS", "version": 3 }
+  "requirement": { "id": 75, "name": "...", "description": "...", "status": "IN_PROGRESS", "version": 3 },
+  "related": [
+    { "id": 76, "name": "출석체크 API", "description": "...", "status": "DONE", "endpoint": "POST /api/attendance" }
+  ]
 }
 ```
+
+`related`는 항상 배열이며, 연결된 관련 요구사항이 없으면 `[]`이다. REQUIREMENT가 아닌 노드도 `[]`.
 
 에러: `{ "ok": false, "error": "..." }`
 - `401` 토큰 없음/무효/만료
@@ -78,6 +87,7 @@ const res = await fetch(`${base}/api/nodes/${reqId}`, {
 const data = await res.json();
 if (!data.ok) throw new Error(data.error);
 // data.requirement / data.feature / data.module
+// data.related: 연결된 관련 요구사항[] (각 항목에 endpoint·status 포함)
 ```
 
 ## Task API (2026-06-04 추가)

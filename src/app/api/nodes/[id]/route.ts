@@ -15,6 +15,15 @@ type NodeSummary = {
   description: string | null;
 };
 
+/** 관련 요구사항 요약. 외부 프로젝트가 연결된 요구사항의 API 정보까지 바로 쓰도록 endpoint·status 포함. */
+type RelatedNode = {
+  id: number;
+  name: string;
+  description: string | null;
+  status: string;
+  endpoint: string | null;
+};
+
 /**
  * GET /api/nodes/:id
  * Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
@@ -69,6 +78,35 @@ export async function GET(
           endpoint: true,
           parent: {
             select: { id: true, name: true, level: true, description: true },
+          },
+        },
+      },
+      // 관련 요구사항(무방향). nodeA/nodeB 양쪽 행을 모은다. (관련 요구사항 v1.0)
+      relationsA: {
+        orderBy: { nodeBId: "asc" },
+        select: {
+          nodeB: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              status: true,
+              endpoint: true,
+            },
+          },
+        },
+      },
+      relationsB: {
+        orderBy: { nodeAId: "asc" },
+        select: {
+          nodeA: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              status: true,
+              endpoint: true,
+            },
           },
         },
       },
@@ -139,6 +177,13 @@ export async function GET(
     module = { id: node.id, name: node.name, description: node.description };
   }
 
+  // 관련 요구사항(무방향)을 상대 노드 목록으로 평탄화하고 id 기준 정렬.
+  // 관계는 REQUIREMENT끼리만 존재하므로 다른 레벨에선 빈 배열이 된다. (관련 요구사항 v1.0)
+  const related: RelatedNode[] = [
+    ...node.relationsA.map((r) => r.nodeB),
+    ...node.relationsB.map((r) => r.nodeA),
+  ].sort((a, b) => a.id - b.id);
+
   return NextResponse.json({
     ok: true,
     level: node.level,
@@ -146,6 +191,7 @@ export async function GET(
     module,
     feature,
     requirement,
+    related,
   });
 }
 
