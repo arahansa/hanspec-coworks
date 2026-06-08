@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMember } from "@/lib/auth";
 import { CheckButton } from "./CheckButton";
+import { CancelRequestButton } from "./CancelRequestButton";
 
 export const dynamic = "force-dynamic";
 
@@ -165,6 +166,13 @@ export default async function NotificationsPage({
                     )}
                   </p>
                 </div>
+
+                {/* 보낸 요청 중 아직 확인되지 않은 건만 보낸 본인이 철회할 수 있다. */}
+                {tab === "sent" && !r.checked && (
+                  <div className="pt-0.5">
+                    <CancelRequestButton requestId={r.id} />
+                  </div>
+                )}
               </li>
             );
           })}
