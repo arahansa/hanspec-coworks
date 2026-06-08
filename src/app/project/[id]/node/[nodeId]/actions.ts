@@ -438,6 +438,79 @@ export async function deleteCompleteNotification(
   return { ok: true };
 }
 
+/**
+ * 두 요구사항을 "관련"으로 연결한다. (관련 요구사항 설계 v1.0)
+ * - 무방향: 항상 작은 id가 nodeAId가 되도록 정규화해 한 행으로 저장한다.
+ * - 둘 다 REQUIREMENT, 같은 프로젝트, 자기 자신 아님을 검증.
+ * - 복합키 upsert로 중복 연결을 멱등 처리한다.
+ * 참조: docs/superpowers/specs/2026-06-08-related-requirement-design.md
+ */
+export async function addRelation(
+  nodeId: number,
+  otherId: number,
+): Promise<NodeActionResult> {
+  const check = await requireRequirementNode(nodeId);
+  if (!check.ok) return check.result;
+
+  if (otherId === nodeId) {
+    return { ok: false, error: "자기 자신은 연결할 수 없습니다." };
+  }
+
+  const other = await prisma.node.findUnique({
+    where: { id: otherId },
+    select: { id: true, level: true, projectId: true },
+  });
+  if (!other) return { ok: false, error: "존재하지 않는 노드입니다." };
+  if (other.level !== "REQUIREMENT") {
+    return { ok: false, error: "요구사항(REQUIREMENT)끼리만 연결할 수 있습니다." };
+  }
+  if (other.projectId !== check.node.projectId) {
+    return { ok: false, error: "같은 프로젝트의 요구사항만 연결할 수 있습니다." };
+  }
+
+  const [a, b] = nodeId < otherId ? [nodeId, otherId] : [otherId, nodeId];
+  await prisma.nodeRelation.upsert({
+    where: { nodeAId_nodeBId: { nodeAId: a, nodeBId: b } },
+    create: { nodeAId: a, nodeBId: b },
+    update: {},
+  });
+
+  // 무방향이므로 양쪽 상세를 모두 최신화한다.
+  revalidatePath(`/project/${check.node.projectId}/node/${nodeId}`);
+  revalidatePath(`/project/${check.node.projectId}/node/${otherId}`);
+  return { ok: true };
+}
+
+/**
+ * 두 요구사항의 "관련" 연결을 해제한다. (관련 요구사항 설계 v1.0)
+ * - 정규화 후 delete. 연결이 없으면(P2025) 무시한다.
+ */
+export async function removeRelation(
+  nodeId: number,
+  otherId: number,
+): Promise<NodeActionResult> {
+  const check = await requireRequirementNode(nodeId);
+  if (!check.ok) return check.result;
+
+  const [a, b] = nodeId < otherId ? [nodeId, otherId] : [otherId, nodeId];
+  try {
+    await prisma.nodeRelation.delete({
+      where: { nodeAId_nodeBId: { nodeAId: a, nodeBId: b } },
+    });
+  } catch (e) {
+    // 이미 해제된 경우(P2025)는 정상 처리. 그 외는 전파.
+    if (
+      !(e instanceof Error && "code" in e && (e as { code?: string }).code === "P2025")
+    ) {
+      throw e;
+    }
+  }
+
+  revalidatePath(`/project/${check.node.projectId}/node/${nodeId}`);
+  revalidatePath(`/project/${check.node.projectId}/node/${otherId}`);
+  return { ok: true };
+}
+
 export type EnvNamesResult =
   | { ok: true; names: string[] }
   | { ok: false; error: string };

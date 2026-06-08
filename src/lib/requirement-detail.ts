@@ -64,6 +64,15 @@ export async function loadRequirementDetail(
         orderBy: { assignedAt: "asc" },
         select: { member: { select: { id: true, username: true } } },
       },
+      // 관련 요구사항(무방향). 이 노드가 nodeA인 행과 nodeB인 행 양쪽을 모은다. (관련 요구사항 v1.0)
+      relationsA: {
+        orderBy: { nodeBId: "asc" },
+        select: { nodeB: { select: { id: true, name: true } } },
+      },
+      relationsB: {
+        orderBy: { nodeAId: "asc" },
+        select: { nodeA: { select: { id: true, name: true } } },
+      },
       requests: { select: { receiverId: true, groupId: true } },
       // 완료 알림 예약(이 노드가 DONE이 되면 발송). (12)
       completeTriggers: {
@@ -86,11 +95,17 @@ export async function loadRequirementDetail(
 
   const data: RequirementDetailData = {
     id: node.id,
+    projectId: node.projectId,
     name: node.name,
     version: node.version,
     description: node.description,
     status: node.status,
     projectName: node.project.name,
+    // 양방향 관계를 상대 노드 목록으로 평탄화하고 id 기준 정렬. (관련 요구사항 v1.0)
+    related: [
+      ...node.relationsA.map((r) => r.nodeB),
+      ...node.relationsB.map((r) => r.nodeA),
+    ].sort((a, b) => a.id - b.id),
     // 위(모듈)→아래(기능) 순.
     ancestors: [node.parent?.parent, node.parent]
       .filter((a) => a != null)

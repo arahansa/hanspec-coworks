@@ -102,6 +102,25 @@ model Node {
   requests  RequestNotification[]
   completeTriggers CompleteNotification[] @relation("CompleteTrigger")
   completeTargets  CompleteNotification[] @relation("CompleteTarget")
+  relationsA NodeRelation[] @relation("RelationA")
+  relationsB NodeRelation[] @relation("RelationB")
+}
+
+/// 요구사항 간 "관련" 연결. 무방향 — 항상 nodeAId < nodeBId로 정규화 저장하여
+/// 한 행으로 양쪽 상세에서 보인다. 우선 같은 프로젝트의 REQUIREMENT끼리만 연결.
+/// 관계 종류 구분은 차후 type 컬럼으로 확장. (관련 요구사항 설계 v1.0)
+/// 참조: docs/superpowers/specs/2026-06-08-related-requirement-design.md
+model NodeRelation {
+  nodeAId   Int
+  nodeBId   Int
+  createdAt DateTime @default(now())
+
+  nodeA Node @relation("RelationA", fields: [nodeAId], references: [id], onDelete: Cascade)
+  nodeB Node @relation("RelationB", fields: [nodeBId], references: [id], onDelete: Cascade)
+
+  @@id([nodeAId, nodeBId])
+  @@index([nodeBId])
+  @@map("node_relation")
 }
 
 /// 프로젝트 단위로 관리되는 태그. 같은 프로젝트 내에서 이름은 유일하다.
