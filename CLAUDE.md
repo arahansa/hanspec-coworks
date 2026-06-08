@@ -18,14 +18,17 @@
 
 - **Framework**: Next.js 16 (App Router, Turbopack) + TypeScript
 - **Styling**: Tailwind CSS v4
-- **DB**: PostgreSQL (로컬 개발은 Docker 컨테이너, 차후 Supabase 이전)
+- **DB**: PostgreSQL — **Supabase**(클라우드, region `ap-northeast-2`/서울)
 - **ORM**: Prisma 7 (driver adapter `@prisma/adapter-pg`)
 - **Node**: 24 LTS (`.nvmrc`) — Prisma 7이 20.19+/22.12+/24+ 요구
 - **패키지 매니저**: pnpm
 
 - 첫 페이지(`/`)가 DB 연결 상태를 표시하고, `/api/health`가 `SELECT NOW()`로 연결을 검증한다.
-- 로컬 PostgreSQL: Docker 컨테이너 `postgres-common`(postgres:15-alpine), 호스트 포트 **5433**, DB명 `coworks`.
-- 접속 정보는 `.env`의 `DATABASE_URL`. 예시는 `.env.example` 참고.
+- **DB 연결: Supabase**. Supabase는 pooler 종류에 따라 포트가 다르므로 두 URL을 함께 둔다.
+  - `DATABASE_URL` — 런타임용 **Transaction pooler(6543)**. PrismaClient 어댑터(`src/lib/prisma.ts`)가 사용.
+  - `DATABASE_URL_UNPOOLED` — 마이그레이션(DDL)용 **Session pooler(5432)**. `prisma.config.ts`가 사용.
+  - Direct 연결(`db.<ref>.supabase.co`)은 IPv6 전용이라 IPv4 환경(Docker 등)에서 닿지 않으므로, Session pooler를 direct 대용으로 쓴다.
+- 접속 정보는 `.env`에 둔다(커밋 금지). 예시는 `.env.example` 참고.
 
 ## Prisma (v7 주의사항)
 
@@ -41,7 +44,8 @@
 | `src/app/page.tsx` | 첫 페이지 (DB 연결 상태 표시) |
 | `src/app/api/health/route.ts` | DB 연결 검증 엔드포인트 |
 | `src/lib/prisma.ts` | PrismaClient 싱글턴 (pg 어댑터) |
-| `prisma/schema.prisma` | 스키마 (현재 검증용 `HealthCheck` 모델만 존재) |
+| `prisma/schema.prisma` | 스키마 (MFR 도메인: Node/Member/Project/Task 등 + 검증용 `HealthCheck`) |
+| `prisma.config.ts` | Prisma CLI 설정 — 마이그레이션은 `DATABASE_URL_UNPOOLED`(Session pooler) 사용 |
 
 ## 참조
 
