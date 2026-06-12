@@ -1,4 +1,4 @@
-// 참조: external-project/docs/apis/03-task-create-api-design.md (v1.0) — (선택) Task 목록 조회
+// 참조: docs/apis/01-node.md — (선택) Task 목록 조회
 // 액세스 토큰 기반, 특정 노드의 Task 목록 조회 API.
 // POST /api/tasks 등록 후 검증/멱등 처리에 쓴다. 인증·권한은 nodes/[id]와 동일.
 import { NextResponse } from "next/server";

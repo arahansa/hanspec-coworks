@@ -1,5 +1,4 @@
-// 참조: docs/apis/01-node.md,
-//       external-project/docs/apis/03-task-create-api-design.md (v1.0)
+// 참조: docs/apis/01-node.md
 // 액세스 토큰 기반 Task 생성 API.
 // REQUIREMENT 노드에 Task(컴포넌트 등)를 등록한다.
 // 다른 프로젝트가 .env의 HANSPEC_COWORKS_ACCESSTOKEN으로 호출한다.

@@ -92,7 +92,7 @@ if (!data.ok) throw new Error(data.error);
 
 ## Task API (2026-06-04 추가)
 
-요청 사양: `external-project/docs/apis/03-task-create-api-design.md` (호출 측 작성).
+요청 사양: 호출하는 프로젝트(외부) 작성.
 
 ### `POST /api/tasks` — REQUIREMENT 노드에 Task 생성
 
@@ -122,7 +122,7 @@ Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
 
 ## Node 설명 업데이트 API (2026-06-04 추가)
 
-요청 사양: `external-project/docs/apis/04-node-update-api-design.md`.
+요청 사양: 호출하는 프로젝트(외부) 작성.
 
 ### `PATCH /api/nodes/:id` — 노드 설명(description) 업데이트
 
