@@ -56,9 +56,14 @@ export function CompletedSearchForm({ initial }: Props) {
               name="view"
               value={opt.value}
               checked={view === opt.value}
-              onChange={() => {
+              onChange={(e) => {
                 setView(opt.value);
                 setError(null);
+                // 오늘/주간은 입력값이 필요 없으므로 선택 즉시 반영한다.
+                // 기간 검색은 날짜를 입력한 뒤 "검색"으로 제출.
+                if (opt.value !== "range") {
+                  e.currentTarget.form?.requestSubmit();
+                }
               }}
               className="h-4 w-4 border-zinc-300 dark:border-zinc-600"
             />
