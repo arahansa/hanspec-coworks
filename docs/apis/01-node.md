@@ -1,5 +1,5 @@
 ---
-version: "1.5"
+version: "1.6"
 created: "2026-06-02"
 updated: "2026-06-12"
 author: "arahansa"
@@ -175,6 +175,28 @@ Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
 - 수정 전 현재 상태 확인·멱등 처리에 사용. 인증/권한 동일.
 - 응답: `{ ok: true, task: { id, nodeId, name, endpoint, description, progress } }`.
 
+## 나의 작업 API (2026-06-12 추가)
+
+요구사항: #195 "나의 작업 페이지 UI 동작". 웹 페이지(`/project/:id/myworks`)와 함께 추가.
+
+### `GET /api/my-works` — 토큰 멤버가 담당자인 요구사항 목록
+
+```
+GET {HANSPEC_COWORKS_BASE_URL}/api/my-works?status=DRAFT&projectId=3
+Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
+```
+
+- 토큰 멤버가 **담당자(assignee)로 할당된 REQUIREMENT** 목록을 반환한다.
+- 쿼리(모두 선택):
+  - `status` — `DRAFT`(기본) | `IN_PROGRESS` | `DONE` | `ALL`.
+    기본이 초안인 이유: "내가 해야 할 작업"을 외부 도구(에이전트 루프 등)가
+    한 세션당 하나씩 집어 진행하는 용도. (#195)
+  - `projectId` — 특정 프로젝트로 한정.
+- 자기 자신에게 할당된 노드만 반환하므로 별도 프로젝트 권한 검증(403)은 없다.
+- 정렬: 상태(초안→진행중→완료) 순, 같은 상태는 id 순.
+- 성공: `200 { ok: true, works: [{ nodeId, projectId, name, description, status }] }`
+- 에러: `400`(잘못된 status/projectId), `401`(토큰).
+
 ## 한계 / 차후 과제
 
 - 토큰은 현재 평문 저장. 외부 노출되므로 향후 해시 저장 권장.
@@ -185,6 +207,8 @@ Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
 - `src/app/api/tasks/route.ts` — POST Task 생성 라우트 (2026-06-04)
 - `src/app/api/nodes/[id]/tasks/route.ts` — GET Task 목록 라우트 (2026-06-04)
 - `src/app/api/tasks/[id]/route.ts` — GET Task 단건 + PATCH Task 수정 라우트 (2026-06-12)
+- `src/app/api/my-works/route.ts` — GET 나의 작업 목록 라우트 (2026-06-12)
+- `src/app/project/[id]/myworks/page.tsx` — 나의 작업 웹 페이지 (2026-06-12)
 - `src/lib/access-token.ts` — `authenticateByToken`
 - `src/lib/api-auth.ts` — `authenticateRequest`, `authorizeProjectAccess` (토큰 API 공통 인증/권한)
 - `src/lib/task.ts` — Task 필드 검증/정규화 (Server Action·API 공유)

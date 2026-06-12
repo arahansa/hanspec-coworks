@@ -1,5 +1,5 @@
 ---
-version: "1.3"
+version: "1.4"
 created: "2026-06-04"
 updated: "2026-06-12"
 author: "arahansa"
@@ -27,6 +27,7 @@ coworks 서버의 API를 호출하기 위한 가이드.
 | `POST /api/tasks` | REQUIREMENT 노드에 Task 생성 | `201` | [↓](#post-apitasks--requirement-노드에-task-생성) |
 | `GET /api/tasks/:id` | Task 단건 조회 | `200` | [↓](#get-apitasksid--task-단건-조회) |
 | `PATCH /api/tasks/:id` | Task 부분 수정(진행도/설명/이름/endpoint) | `200` | [↓](#patch-apitasksid--task-부분-수정) |
+| `GET /api/my-works` | 토큰 멤버가 담당자인 요구사항 목록 | `200` | [↓](#get-apimy-works--나의-작업-목록-조회) |
 
 공통 에러: `400`(잘못된 입력) · `401`(토큰 없음/무효/만료) · `403`(프로젝트 권한 없음) · `404`(노드/Task 없음).
 `POST /api/tasks`는 추가로 `422`(대상 노드가 REQUIREMENT가 아님).
@@ -260,6 +261,34 @@ Header: Content-Type: application/json
 
 에러: `400`(잘못된 id/검증/수정 필드 없음), `401`(토큰), `403`(권한), `404`(task 없음).
 
+### `GET /api/my-works` — 나의 작업 목록 조회
+
+토큰 멤버가 **담당자(assignee)로 할당된 요구사항(REQUIREMENT)** 목록을 얻는다.
+"내가 해야 할 작업"을 외부 도구(에이전트 루프 등)가 하나씩 집어 진행하는 용도.
+
+```
+GET {HANSPEC_COWORKS_BASE_URL}/api/my-works?status=DRAFT&projectId=3
+Header: Authorization: Bearer {HANSPEC_COWORKS_ACCESSTOKEN}
+```
+
+| 쿼리 | 필수 | 설명 |
+|---|---|---|
+| `status` | ❌ | `DRAFT`(기본) \| `IN_PROGRESS` \| `DONE` \| `ALL` |
+| `projectId` | ❌ | 특정 프로젝트로 한정 |
+
+성공 응답(`200`): 상태(초안→진행중→완료) 순, 같은 상태는 id 순.
+
+```json
+{
+  "ok": true,
+  "works": [
+    { "nodeId": 195, "projectId": 3, "name": "나의 작업 페이지 UI 동작", "description": "...", "status": "DRAFT" }
+  ]
+}
+```
+
+에러: `400`(잘못된 status/projectId), `401`(토큰). 자기 자신에게 할당된 노드만 반환하므로 `403`/`404`는 없다.
+
 ---
 
 ## 4. 호출 코드
@@ -296,6 +325,10 @@ curl -X PATCH -H "Authorization: Bearer $HANSPEC_COWORKS_ACCESSTOKEN" \
   -H "Content-Type: application/json" \
   -d '{"progress":100}' \
   "$HANSPEC_COWORKS_BASE_URL/api/tasks/26"
+
+# 나의 작업 목록 (초안만)
+curl -H "Authorization: Bearer $HANSPEC_COWORKS_ACCESSTOKEN" \
+  "$HANSPEC_COWORKS_BASE_URL/api/my-works?status=DRAFT"
 ```
 
 ### fetch (Node / TypeScript)
@@ -392,6 +425,23 @@ export const updateTask = (id: number, input: UpdateTaskInput) =>
     method: "PATCH",
     body: JSON.stringify(input),
   });
+
+// GET /api/my-works
+type MyWork = {
+  nodeId: number; projectId: number; name: string;
+  description: string | null; status: "DRAFT" | "IN_PROGRESS" | "DONE";
+};
+type MyWorksResponse = { ok: true; works: MyWork[] };
+export const fetchMyWorks = (opts?: {
+  status?: "DRAFT" | "IN_PROGRESS" | "DONE" | "ALL";
+  projectId?: number;
+}) => {
+  const qs = new URLSearchParams();
+  if (opts?.status) qs.set("status", opts.status);
+  if (opts?.projectId != null) qs.set("projectId", String(opts.projectId));
+  const query = qs.size > 0 ? `?${qs}` : "";
+  return call<MyWorksResponse>(`/api/my-works${query}`);
+};
 ```
 
 ---

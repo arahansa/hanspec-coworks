@@ -21,6 +21,7 @@ const HIDDEN_PREFIXES = ["/admin", "/signin", "/signup", "/me"];
 // 프로젝트 선택 시 좌측에 표시되는 프로젝트 내 작업 메뉴.
 // 참조: docs/components/02-navigation-left.md (v1.1)
 const PROJECT_TASK_ITEMS = [
+  { segment: "/myworks", label: "나의 작업" },
   { segment: "/table-view", label: "TableView" },
   { segment: "/completed", label: "완료된 작업" },
   { segment: "/environment", label: "환경변수 관리" },
