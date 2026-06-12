@@ -1,7 +1,7 @@
 ---
-version: "1.2"
+version: "1.3"
 created: "2026-06-04"
-updated: "2026-06-04"
+updated: "2026-06-12"
 author: "arahansa"
 ---
 
@@ -25,8 +25,10 @@ coworks 서버의 API를 호출하기 위한 가이드.
 | `PATCH /api/nodes/:id` | 노드 설명(description) 업데이트 | `200` | [↓](#patch-apinodesid--노드-설명description-업데이트) |
 | `GET /api/nodes/:id/tasks` | 노드의 Task 목록 조회 | `200` | [↓](#get-apinodesidtasks--노드의-task-목록-조회) |
 | `POST /api/tasks` | REQUIREMENT 노드에 Task 생성 | `201` | [↓](#post-apitasks--requirement-노드에-task-생성) |
+| `GET /api/tasks/:id` | Task 단건 조회 | `200` | [↓](#get-apitasksid--task-단건-조회) |
+| `PATCH /api/tasks/:id` | Task 부분 수정(진행도/설명/이름/endpoint) | `200` | [↓](#patch-apitasksid--task-부분-수정) |
 
-공통 에러: `400`(잘못된 입력) · `401`(토큰 없음/무효/만료) · `403`(프로젝트 권한 없음) · `404`(노드 없음).
+공통 에러: `400`(잘못된 입력) · `401`(토큰 없음/무효/만료) · `403`(프로젝트 권한 없음) · `404`(노드/Task 없음).
 `POST /api/tasks`는 추가로 `422`(대상 노드가 REQUIREMENT가 아님).
 
 ---
@@ -211,6 +213,53 @@ Header: Content-Type: application/json
 에러: `400`(검증 실패), `401`(토큰), `403`(권한), `404`(노드 없음),
 `422`(노드가 REQUIREMENT가 아님).
 
+### `GET /api/tasks/:id` — Task 단건 조회
+
+task id 하나로 현재 상태를 확인한다. 수정 전 확인·멱등 처리에 사용. 인증/권한은 위와 동일.
+
+```json
+{
+  "ok": true,
+  "task": { "id": 26, "nodeId": 192, "name": "LoginForm", "endpoint": "...", "description": "...", "progress": 0 }
+}
+```
+
+### `PATCH /api/tasks/:id` — Task 부분 수정
+
+이미 만들어진 Task의 진행도/설명/이름/endpoint를 수정한다. **보낸 필드만 갱신**(부분 수정).
+
+```
+PATCH {HANSPEC_COWORKS_BASE_URL}/api/tasks/:id
+Header: Authorization: Bearer {HANSPEC_COWORKS_ACCESSTOKEN}
+Header: Content-Type: application/json
+```
+
+요청 바디 (진행도만 올리는 가장 흔한 케이스):
+
+```json
+{ "progress": 100 }
+```
+
+| 필드 | 타입 | 필수 | 제약 |
+|---|---|---|---|
+| `progress` | number | ❌ | 정수 0~100 |
+| `description` | string | ❌ | trim 후 비어있지 않을 것 (`null`/빈 값 불가) |
+| `name` | string \| null | ❌ | trim 후 ≤ 50자, 빈 값/`null`은 값 제거 |
+| `endpoint` | string \| null | ❌ | trim 후 ≤ 255자, 빈 값/`null`은 값 제거 |
+
+수정 대상 키가 0개(빈 바디 `{}` 포함)면 `400`("수정할 필드가 없습니다.").
+
+성공 응답(`200`): 수정 후 Task 전체를 돌려주므로 재조회 없이 검증 가능.
+
+```json
+{
+  "ok": true,
+  "task": { "id": 26, "nodeId": 192, "name": "LoginForm", "endpoint": "...", "description": "...", "progress": 100 }
+}
+```
+
+에러: `400`(잘못된 id/검증/수정 필드 없음), `401`(토큰), `403`(권한), `404`(task 없음).
+
 ---
 
 ## 4. 호출 코드
@@ -237,12 +286,22 @@ curl -X POST -H "Authorization: Bearer $HANSPEC_COWORKS_ACCESSTOKEN" \
   -H "Content-Type: application/json" \
   -d '{"nodeId":21,"description":"...","name":"Foo","endpoint":"app/foo/Foo.tsx"}' \
   "$HANSPEC_COWORKS_BASE_URL/api/tasks"
+
+# Task 단건 조회
+curl -H "Authorization: Bearer $HANSPEC_COWORKS_ACCESSTOKEN" \
+  "$HANSPEC_COWORKS_BASE_URL/api/tasks/26"
+
+# Task 진행도 100% 마감
+curl -X PATCH -H "Authorization: Bearer $HANSPEC_COWORKS_ACCESSTOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"progress":100}' \
+  "$HANSPEC_COWORKS_BASE_URL/api/tasks/26"
 ```
 
 ### fetch (Node / TypeScript)
 
-서버 측에서만 호출한다(토큰 노출 방지). 아래를 `lib/coworks.ts` 등으로 두면 네 API를
-모두 한 클라이언트로 쓸 수 있다.
+서버 측에서만 호출한다(토큰 노출 방지). 아래를 `lib/coworks.ts` 등으로 두면 모든 API를
+한 클라이언트로 쓸 수 있다.
 
 ```ts
 // 호출하는 프로젝트의 lib/coworks.ts
@@ -311,6 +370,26 @@ type CreateTaskResponse = { ok: true; taskId: number };
 export const createTask = (input: CreateTaskInput) =>
   call<CreateTaskResponse>(`/api/tasks`, {
     method: "POST",
+    body: JSON.stringify(input),
+  });
+
+// GET /api/tasks/:id
+type TaskDetail = TaskItem & { nodeId: number };
+type TaskResponse = { ok: true; task: TaskDetail };
+export const fetchTask = (id: number) =>
+  call<TaskResponse>(`/api/tasks/${id}`);
+
+// PATCH /api/tasks/:id
+type UpdateTaskInput = {
+  progress?: number;
+  description?: string;
+  name?: string | null;
+  endpoint?: string | null;
+};
+type UpdateTaskResponse = { ok: true; task: TaskDetail };
+export const updateTask = (id: number, input: UpdateTaskInput) =>
+  call<UpdateTaskResponse>(`/api/tasks/${id}`, {
+    method: "PATCH",
     body: JSON.stringify(input),
   });
 ```

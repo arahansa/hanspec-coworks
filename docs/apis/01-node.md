@@ -1,7 +1,7 @@
 ---
-version: "1.4"
+version: "1.5"
 created: "2026-06-02"
-updated: "2026-06-08"
+updated: "2026-06-12"
 author: "arahansa"
 ---
 
@@ -140,6 +140,41 @@ Body: { "description": "..." | null }
 - 성공: `200 { ok: true, node: { id, level, description, version } }`.
 - 에러: `400`(잘못된 id/타입), `401`(토큰), `403`(권한), `404`(노드 없음).
 
+## Task 수정 API (2026-06-12 추가)
+
+요청 사양: 호출하는 프로젝트(외부) 작성.
+
+### `PATCH /api/tasks/:id` — Task 부분 수정 (진행도/설명/이름/endpoint)
+
+```
+PATCH {HANSPEC_COWORKS_BASE_URL}/api/tasks/:id
+Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
+Header: Content-Type: application/json
+Body: { "progress": 100, "description": "...", "name": "...", "endpoint": "..." }
+```
+
+- 인증·권한은 `GET /api/nodes/:id`와 동일(토큰 7일, SUPER 우회 + projectMember).
+  권한 기준 projectId는 Task → Node 조인으로 얻는다.
+- **부분 수정(PATCH semantics)**: 바디에 **포함된 키만** 갱신. 누락된 키는 기존 값 유지.
+- 필드 규칙은 생성 API와 동일(`src/lib/task.ts` 공유).
+  - `progress`(정수 0~100), `description`(trim 후 비어있지 않을 것 — null/빈 값 불가),
+    `name`(≤50, 빈 값·`null`은 null), `endpoint`(≤255, 빈 값·`null`은 null).
+- 수정 대상 키가 0개(빈 바디 포함)면 `400`("수정할 필드가 없습니다.").
+- 성공: `200 { ok: true, task: { id, nodeId, name, endpoint, description, progress } }`
+  (수정 후 전체를 돌려줘 호출 측이 재조회 없이 검증 가능).
+- 에러: `400`(잘못된 id/검증/수정 필드 없음), `401`(토큰), `403`(권한), `404`(task 없음).
+  수정은 기존 Task가 대상이라 노드 레벨 검증이 없으므로 `422` 없음.
+
+### `GET /api/tasks/:id` — Task 단건 조회
+
+```
+GET {HANSPEC_COWORKS_BASE_URL}/api/tasks/:id
+Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
+```
+
+- 수정 전 현재 상태 확인·멱등 처리에 사용. 인증/권한 동일.
+- 응답: `{ ok: true, task: { id, nodeId, name, endpoint, description, progress } }`.
+
 ## 한계 / 차후 과제
 
 - 토큰은 현재 평문 저장. 외부 노출되므로 향후 해시 저장 권장.
@@ -149,6 +184,7 @@ Body: { "description": "..." | null }
 - `src/app/api/nodes/[id]/route.ts` — GET 노드 라우트 + PATCH 설명 업데이트 (2026-06-04)
 - `src/app/api/tasks/route.ts` — POST Task 생성 라우트 (2026-06-04)
 - `src/app/api/nodes/[id]/tasks/route.ts` — GET Task 목록 라우트 (2026-06-04)
+- `src/app/api/tasks/[id]/route.ts` — GET Task 단건 + PATCH Task 수정 라우트 (2026-06-12)
 - `src/lib/access-token.ts` — `authenticateByToken`
 - `src/lib/api-auth.ts` — `authenticateRequest`, `authorizeProjectAccess` (토큰 API 공통 인증/권한)
 - `src/lib/task.ts` — Task 필드 검증/정규화 (Server Action·API 공유)
