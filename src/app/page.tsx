@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { CliApiGuide } from "@/components/CliApiGuide";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +71,9 @@ export default async function Home() {
             </div>
           )}
         </div>
+
+        {/* CLI API 안내 + 연동 가이드 다운로드 (#210) */}
+        <CliApiGuide />
       </main>
     </div>
   );
