@@ -1,12 +1,17 @@
 // 참조: docs/superpowers/specs/2026-06-08-completed-tasks-page-design.md (v1.1),
-//       docs/domain/03-node.md (v1.5 추가기능)
+//       docs/domain/03-node.md (v1.5 추가기능),
+//       요구사항 #201 "오늘 완료된 작업, 주간보기 라디오형태로 표현"
 // 프로젝트별 "완료된 작업" 목록. DONE 상태가 된 REQUIREMENT를 completedAt 기준으로 조회한다.
-// 필터(오늘 / 기간)는 URL 쿼리로 관리하며, 이 서버 컴포넌트가 재조회한다.
+// 필터(오늘 / 주간 / 기간)는 URL 쿼리로 관리하며, 이 서버 컴포넌트가 재조회한다.
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMember } from "@/lib/auth";
-import { CompletedSearchForm } from "./CompletedSearchForm";
+import {
+  CompletedSearchForm,
+  type CompletedViewMode,
+} from "./CompletedSearchForm";
+import { WeekTable } from "./WeekTable";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +41,20 @@ function formatDateTime(iso: string): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
-type SearchParams = { today?: string; from?: string; to?: string };
+type SearchParams = {
+  view?: string;
+  today?: string;
+  from?: string;
+  to?: string;
+};
+
+/** 서버 로컬 기준 이번 주 월요일 00:00. */
+function startOfWeek(d: Date): Date {
+  const start = startOfDay(d);
+  // getDay(): 일=0 … 토=6 → 월요일 시작 주의 오프셋으로 변환.
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  return start;
+}
 
 // Next.js 16: params·searchParams 모두 Promise.
 export default async function CompletedTasksPage({
@@ -63,22 +81,36 @@ export default async function CompletedTasksPage({
   const fromParsed = parseDateParam(sp.from);
   const toParsed = parseDateParam(sp.to);
 
-  // 모드 결정: today 파라미터가 있으면 항상 오늘(from/to보다 우선).
-  //           today/from/to 모두 없으면 기본값으로 오늘.
-  const todayMode = sp.today != null || (sp.from == null && sp.to == null);
+  // 모드 결정(#201): view 파라미터(today|week|range) 우선.
+  // 레거시 쿼리 호환 — today=1이면 오늘, from/to만 있으면 기간, 아무것도 없으면 오늘.
+  let mode: CompletedViewMode;
+  if (sp.view === "week") mode = "week";
+  else if (sp.view === "range") mode = "range";
+  else if (sp.view === "today" || sp.today != null) mode = "today";
+  else if (sp.from != null || sp.to != null) mode = "range";
+  else mode = "today";
 
   // completedAt 범위(gte/lt)를 계산한다. 모두 서버 로컬 타임존 기준.
   let gte: Date | undefined;
   let lt: Date | undefined;
   let summary: string;
+  const weekStart = startOfWeek(new Date());
 
-  if (todayMode) {
+  if (mode === "today") {
     const start = startOfDay(new Date());
     const end = new Date(start);
     end.setDate(end.getDate() + 1);
     gte = start;
     lt = end;
     summary = "오늘 완료";
+  } else if (mode === "week") {
+    // 이번 주 월요일 00:00 ~ 다음 주 월요일 00:00.
+    gte = weekStart;
+    lt = new Date(weekStart);
+    lt.setDate(lt.getDate() + 7);
+    const end = new Date(weekStart);
+    end.setDate(end.getDate() + 6);
+    summary = `이번 주 완료 (${weekStart.getMonth() + 1}/${weekStart.getDate()} ~ ${end.getMonth() + 1}/${end.getDate()})`;
   } else {
     // 기간: from 00:00 ~ to+1일 00:00(to 당일 포함).
     if (fromParsed) gte = fromParsed;
@@ -140,7 +172,7 @@ export default async function CompletedTasksPage({
 
       <CompletedSearchForm
         initial={{
-          today: todayMode,
+          view: mode,
           from: sp.from ?? "",
           to: sp.to ?? "",
         }}
@@ -153,7 +185,22 @@ export default async function CompletedTasksPage({
         <span>· {items.length}건</span>
       </div>
 
-      {items.length === 0 ? (
+      {mode === "week" ? (
+        // 주간보기: 빈 날도 칸으로 보여주는 달력 표 (#201)
+        <WeekTable
+          projectId={projectId}
+          weekStart={weekStart}
+          items={items
+            .filter((i) => i.completedAt !== null)
+            .map((i) => ({
+              id: i.id,
+              name: i.name,
+              completedAt: i.completedAt as string,
+              moduleName: i.moduleName,
+              featureName: i.featureName,
+            }))}
+        />
+      ) : items.length === 0 ? (
         <div className="rounded-xl border border-dashed border-zinc-300 p-10 text-center text-sm text-zinc-400 dark:border-zinc-700 dark:text-zinc-500">
           완료된 작업이 없습니다.
         </div>

@@ -1,23 +1,34 @@
-// 참조: docs/superpowers/specs/2026-06-08-completed-tasks-page-design.md (v1.1)
+// 참조: docs/superpowers/specs/2026-06-08-completed-tasks-page-design.md (v1.1),
+//       요구사항 #201 "오늘 완료된 작업, 주간보기 라디오형태로 표현"
 // 완료된 작업 목록 페이지 상단의 검색영역.
+// "오늘 완료 / 주간보기"는 라디오로 둘 중 하나만 선택된다(#201). 기존 기간 검색은
+// 세 번째 라디오로 유지한다.
 // <form method="get">로 URL 쿼리를 갱신 → 서버 컴포넌트가 재조회한다(server action 불필요).
 "use client";
 
 import { useState } from "react";
 
+export type CompletedViewMode = "today" | "week" | "range";
+
 type Props = {
   /** 페이지 진입 시점의 필터 상태(현재 searchParams 반영). */
-  initial: { today: boolean; from: string; to: string };
+  initial: { view: CompletedViewMode; from: string; to: string };
 };
 
+const VIEW_OPTIONS: { value: CompletedViewMode; label: string }[] = [
+  { value: "today", label: "오늘 완료된 작업" },
+  { value: "week", label: "주간보기" },
+  { value: "range", label: "기간 검색" },
+];
+
 export function CompletedSearchForm({ initial }: Props) {
-  const [today, setToday] = useState(initial.today);
+  const [view, setView] = useState<CompletedViewMode>(initial.view);
   const [from, setFrom] = useState(initial.from);
   const [to, setTo] = useState(initial.to);
   const [error, setError] = useState<string | null>(null);
 
   // from > to 면 제출을 막는다(기간 모드에서만 검증).
-  const rangeInvalid = !today && from !== "" && to !== "" && from > to;
+  const rangeInvalid = view === "range" && from !== "" && to !== "" && from > to;
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     if (rangeInvalid) {
@@ -32,21 +43,29 @@ export function CompletedSearchForm({ initial }: Props) {
       onSubmit={onSubmit}
       className="mb-6 flex flex-wrap items-end gap-4 rounded-lg border border-zinc-200 bg-zinc-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-900/40"
     >
-      {/* 체크박스 ON이면 today=1만 전송, OFF면 today를 빼고 from/to만 전송한다. */}
-      <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700 dark:text-zinc-200">
-        <input
-          type="checkbox"
-          name="today"
-          value="1"
-          checked={today}
-          onChange={(e) => {
-            setToday(e.target.checked);
-            setError(null);
-          }}
-          className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600"
-        />
-        오늘 완료된 작업 보기
-      </label>
+      {/* 보기 모드 라디오. 기간 모드가 아니면 from/to는 disabled라 전송되지 않는다. */}
+      <fieldset className="flex items-center gap-4">
+        <legend className="sr-only">완료된 작업 보기 모드</legend>
+        {VIEW_OPTIONS.map((opt) => (
+          <label
+            key={opt.value}
+            className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700 dark:text-zinc-200"
+          >
+            <input
+              type="radio"
+              name="view"
+              value={opt.value}
+              checked={view === opt.value}
+              onChange={() => {
+                setView(opt.value);
+                setError(null);
+              }}
+              className="h-4 w-4 border-zinc-300 dark:border-zinc-600"
+            />
+            {opt.label}
+          </label>
+        ))}
+      </fieldset>
 
       <div className="flex items-end gap-2">
         <label className="flex flex-col gap-1 text-xs text-zinc-500 dark:text-zinc-400">
@@ -55,7 +74,7 @@ export function CompletedSearchForm({ initial }: Props) {
             type="date"
             name="from"
             value={from}
-            disabled={today}
+            disabled={view !== "range"}
             onChange={(e) => {
               setFrom(e.target.value);
               setError(null);
@@ -70,7 +89,7 @@ export function CompletedSearchForm({ initial }: Props) {
             type="date"
             name="to"
             value={to}
-            disabled={today}
+            disabled={view !== "range"}
             onChange={(e) => {
               setTo(e.target.value);
               setError(null);
