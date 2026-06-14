@@ -1,7 +1,7 @@
 ---
-version: "1.6"
+version: "1.7"
 created: "2026-06-02"
-updated: "2026-06-12"
+updated: "2026-06-15"
 author: "arahansa"
 ---
 
@@ -120,25 +120,31 @@ Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
 - 응답: `{ ok: true, nodeId, tasks: [{ id, name, endpoint, description, progress }] }`.
 - 등록 후 검증/멱등 처리에 사용.
 
-## Node 설명 업데이트 API (2026-06-04 추가)
+## Node 설명·상태 업데이트 API (2026-06-04 추가, 2026-06-15 status 추가)
 
 요청 사양: 호출하는 프로젝트(외부) 작성.
 
-### `PATCH /api/nodes/:id` — 노드 설명(description) 업데이트
+### `PATCH /api/nodes/:id` — 노드 설명(description)·상태(status) 업데이트
 
 ```
 PATCH {HANSPEC_COWORKS_BASE_URL}/api/nodes/:id
 Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
 Header: Content-Type: application/json
-Body: { "description": "..." | null }
+Body: { "description"?: "..." | null, "status"?: "DRAFT" | "IN_PROGRESS" | "DONE" }
 ```
 
 - 인증·권한은 `GET /api/nodes/:id`와 동일(토큰 7일, SUPER 우회 + projectMember).
-- **노드 레벨 제약 없음**(MODULE/FEATURE/REQUIREMENT 모두 설명 가능).
-- `description`: 문자열이면 trim(빈 문자열은 null), `null`이면 설명 제거.
-  설명 수정은 도메인상 `version`+1 대상(웹 UI `updateNode`와 동일).
-- 성공: `200 { ok: true, node: { id, level, description, version } }`.
-- 에러: `400`(잘못된 id/타입), `401`(토큰), `403`(권한), `404`(노드 없음).
+- **부분 수정**: 바디에 포함된 키만 갱신. `description`/`status` 둘 다 없으면 `400`.
+- `description`: **노드 레벨 제약 없음**(MODULE/FEATURE/REQUIREMENT 모두 가능).
+  문자열이면 trim(빈 문자열은 null), `null`이면 설명 제거. 설명 수정은 `version`+1 대상.
+- `status`: **REQUIREMENT 노드만** 변경 가능(웹 UI `updateNodeStatus`와 동일 규칙).
+  - 비DONE→DONE: `completedAt` 기록 + 예약된 완료 알림 발송.
+  - DONE→다른 상태: `completedAt` 해제(null). 상태 변경은 `version` 증가 대상이 아니다.
+  - **외부 프로젝트는 이 API로 완료(DONE) 처리한다(coworks DB 직접 접근 불필요).**
+- 성공: `200 { ok: true, node: { id, level, description?, version?, status?, completedAt? } }`
+  (포함한 필드만 응답에 담긴다).
+- 에러: `400`(잘못된 id/타입/수정 필드 없음), `401`(토큰), `403`(권한), `404`(노드 없음),
+  `422`(REQUIREMENT가 아닌 노드에 status 지정).
 
 ## Task 수정 API (2026-06-12 추가)
 
@@ -203,7 +209,8 @@ Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
 - 멤버-프로젝트 소속 관리 UI(admin)는 미구현. 현재는 전체 멤버를 백필해 둠.
 
 ## 산출 코드
-- `src/app/api/nodes/[id]/route.ts` — GET 노드 라우트 + PATCH 설명 업데이트 (2026-06-04)
+- `src/app/api/nodes/[id]/route.ts` — GET 노드 라우트 + PATCH 설명/상태(status) 업데이트 (2026-06-04, status 2026-06-15)
+- `src/lib/node-status.ts` — 노드 상태 전환 로직(completedAt·완료 알림). Server Action·API 공유 (2026-06-15)
 - `src/app/api/tasks/route.ts` — POST Task 생성 라우트 (2026-06-04)
 - `src/app/api/nodes/[id]/tasks/route.ts` — GET Task 목록 라우트 (2026-06-04)
 - `src/app/api/tasks/[id]/route.ts` — GET Task 단건 + PATCH Task 수정 라우트 (2026-06-12)

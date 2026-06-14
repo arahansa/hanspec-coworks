@@ -1,7 +1,7 @@
 ---
-version: "1.4"
+version: "1.5"
 created: "2026-06-04"
-updated: "2026-06-12"
+updated: "2026-06-15"
 author: "arahansa"
 ---
 
@@ -22,7 +22,7 @@ coworks 서버의 API를 호출하기 위한 가이드.
 | 메서드·경로 | 용도 | 성공 | 상세 |
 |---|---|---|---|
 | `GET /api/nodes/:id` | 노드 + 상위(기능·모듈) 한 번에 조회 | `200` | [↓](#get-apinodesid--노드요구사항기능모듈-조회) |
-| `PATCH /api/nodes/:id` | 노드 설명(description) 업데이트 | `200` | [↓](#patch-apinodesid--노드-설명description-업데이트) |
+| `PATCH /api/nodes/:id` | 노드 설명(description)·상태(status) 업데이트 | `200` | [↓](#patch-apinodesid--노드-설명description상태status-업데이트) |
 | `GET /api/nodes/:id/tasks` | 노드의 Task 목록 조회 | `200` | [↓](#get-apinodesidtasks--노드의-task-목록-조회) |
 | `POST /api/tasks` | REQUIREMENT 노드에 Task 생성 | `201` | [↓](#post-apitasks--requirement-노드에-task-생성) |
 | `GET /api/tasks/:id` | Task 단건 조회 | `200` | [↓](#get-apitasksid--task-단건-조회) |
@@ -139,9 +139,9 @@ Header: Authorization: Bearer {HANSPEC_COWORKS_ACCESSTOKEN}
 > 엔드포인트 동작의 상세 구현은 [`01-node.md`](./01-node.md) 및
 > `docs/superpowers/specs/2026-06-02-node-api-design.md` 참조.
 
-### `PATCH /api/nodes/:id` — 노드 설명(description) 업데이트
+### `PATCH /api/nodes/:id` — 노드 설명(description)·상태(status) 업데이트
 
-노드의 설명을 갱신한다. 노드 레벨 제약 없음(모듈/기능/요구사항 모두 가능).
+노드의 설명이나 상태를 갱신한다. **보낸 필드만 수정**(부분 수정).
 
 ```
 PATCH {HANSPEC_COWORKS_BASE_URL}/api/nodes/:id
@@ -149,23 +149,30 @@ Header: Authorization: Bearer {HANSPEC_COWORKS_ACCESSTOKEN}
 Header: Content-Type: application/json
 ```
 
-요청 바디:
+요청 바디(둘 중 하나 이상):
 
 ```json
 { "description": "구현 컴포넌트 구조 설명..." }
+{ "status": "DONE" }
+{ "description": "...", "status": "IN_PROGRESS" }
 ```
 
 | 필드 | 타입 | 필수 | 제약 |
 |---|---|---|---|
-| `description` | string \| null | ✅ | 문자열은 trim(빈 문자열은 설명 제거). `null`도 설명 제거 |
+| `description` | string \| null | ❌ | 노드 레벨 제약 없음. trim(빈 문자열·`null`은 설명 제거). 수정 시 `version`+1 |
+| `status` | `"DRAFT"`\|`"IN_PROGRESS"`\|`"DONE"` | ❌ | **REQUIREMENT 노드만**. 비DONE→DONE이면 완료 시각 기록+완료 알림 발송 |
 
-성공 응답(`200`): 설명 수정 시 `version`이 1 증가한다.
+> **작업 완료(DONE) 처리는 이 API로 한다.** 외부 프로젝트(호출 측)는 coworks DB에 직접
+> 접근하지 않고 `{"status":"DONE"}` PATCH로 요구사항을 완료 처리한다.
+
+성공 응답(`200`): 보낸 필드만 응답에 담긴다(`description` 수정 시 `version`+1, `status`는 `completedAt` 포함).
 
 ```json
-{ "ok": true, "node": { "id": 124, "level": "REQUIREMENT", "description": "...", "version": 3 } }
+{ "ok": true, "node": { "id": 124, "level": "REQUIREMENT", "status": "DONE", "completedAt": "2026-06-15T..." } }
 ```
 
-에러: `400`(잘못된 id/타입), `401`(토큰), `403`(권한), `404`(노드 없음).
+에러: `400`(잘못된 id/타입/수정 필드 없음), `401`(토큰), `403`(권한), `404`(노드 없음),
+`422`(REQUIREMENT가 아닌 노드에 status 지정).
 
 ### `GET /api/nodes/:id/tasks` — 노드의 Task 목록 조회
 
@@ -374,15 +381,27 @@ type NodeResponse = {
 export const fetchNode = (id: number) =>
   call<NodeResponse>(`/api/nodes/${id}`);
 
-// PATCH /api/nodes/:id
+// PATCH /api/nodes/:id (설명·상태 부분 수정)
+type NodeStatus = "DRAFT" | "IN_PROGRESS" | "DONE";
 type NodeUpdateResponse = {
   ok: true;
-  node: { id: number; level: string; description: string | null; version: number };
+  node: {
+    id: number; level: string;
+    description?: string | null; version?: number;
+    status?: NodeStatus; completedAt?: string | null;
+  };
 };
 export const updateNodeDescription = (id: number, description: string | null) =>
   call<NodeUpdateResponse>(`/api/nodes/${id}`, {
     method: "PATCH",
     body: JSON.stringify({ description }),
+  });
+
+// 요구사항 완료(DONE) 처리 — coworks DB 직접 접근 없이 이 API로 한다.
+export const updateNodeStatus = (id: number, status: NodeStatus) =>
+  call<NodeUpdateResponse>(`/api/nodes/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
   });
 
 // GET /api/nodes/:id/tasks

@@ -9,6 +9,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMember } from "@/lib/auth";
 import { NodeStatus } from "@/generated/prisma/enums";
+import { applyNodeStatus } from "@/lib/node-status";
 import {
   normalizeTaskFields,
   validateDescription,
@@ -164,60 +165,13 @@ export async function updateNodeStatus(
     return { ok: false, error: "알 수 없는 상태입니다." };
   }
 
-  const current = await prisma.node.findUnique({
-    where: { id: check.node.id },
-    select: { status: true },
-  });
-
-  // completedAt은 단일 update에 포함한다(추가 조회 없음). (03-node.md 추가기능)
-  // - 비DONE→DONE: 완료 시각 기록 / DONE→다른 상태: null로 해제 / 변화 없음: 유지.
-  const toDone = status === "DONE" && current?.status !== "DONE";
-  const fromDone = status !== "DONE" && current?.status === "DONE";
-  const data = toDone
-    ? { status, completedAt: new Date() }
-    : fromDone
-      ? { status, completedAt: null }
-      : { status };
-
-  await prisma.node.update({
-    where: { id: check.node.id },
-    data,
-  });
-
-  // 비DONE→DONE 전환 시 예약된 완료 알림을 발송한다. (12-complete-notification.md)
-  if (toDone) {
-    await fireCompleteNotifications(check.node.id, member.id);
-  }
+  // 상태 전환 + completedAt 처리 + 완료 알림 발송(공통 로직). HTTP API와 공유한다.
+  await applyNodeStatus(check.node.id, status, member.id);
 
   revalidatePath(`/project/${check.node.projectId}/node/${check.node.id}`);
-  return { ok: true };
-}
-
-/**
- * triggerNode가 DONE이 될 때, 예약된 완료 알림을 실제 확인 요청으로 발송한다.
- * 각 예약마다 targetNode(다음 요구사항)에 대한 RequestNotification을 생성한다.
- * 참조: docs/domain/12-complete-notification.md
- */
-async function fireCompleteNotifications(
-  triggerNodeId: number,
-  senderId: number,
-): Promise<void> {
-  const reservations = await prisma.completeNotification.findMany({
-    where: { triggerNodeId },
-    select: { targetNodeId: true, receiverId: true, groupId: true },
-  });
-  if (reservations.length === 0) return;
-
-  await prisma.requestNotification.createMany({
-    data: reservations.map((r) => ({
-      senderId,
-      receiverId: r.receiverId,
-      groupId: r.groupId,
-      nodeId: r.targetNodeId,
-    })),
-  });
-  // 수신자의 요청 알림 목록을 최신화.
+  // 완료 알림이 발송됐을 수 있으니 수신자의 요청 알림 목록도 최신화.
   revalidatePath("/notifications");
+  return { ok: true };
 }
 
 /**

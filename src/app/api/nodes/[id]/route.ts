@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateRequest, authorizeProjectAccess } from "@/lib/api-auth";
+import { applyNodeStatus, isNodeStatus } from "@/lib/node-status";
 
 export const dynamic = "force-dynamic";
 
@@ -195,18 +196,21 @@ export async function GET(
   });
 }
 
-type NodePatchBody = { description?: unknown };
+type NodePatchBody = { description?: unknown; status?: unknown };
 
 /**
- * PATCH /api/nodes/:id — 노드 설명(description) 업데이트
+ * PATCH /api/nodes/:id — 노드 설명(description)·상태(status) 업데이트
  * Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
- * Body: { description: string | null }
+ * Body: { description?: string | null, status?: "DRAFT" | "IN_PROGRESS" | "DONE" }
  *
  * - 인증·권한은 GET과 동일(토큰 7일, SUPER 우회 + projectMember).
- * - 노드 레벨 제약 없음(MODULE/FEATURE/REQUIREMENT 모두 설명 가능).
- * - description: 문자열이면 trim(빈 문자열은 null), null이면 설명 제거.
+ * - **부분 수정**: 바디에 포함된 키만 갱신. 둘 다 없으면 400.
+ * - `description`: 노드 레벨 제약 없음. 문자열이면 trim(빈 문자열은 null), null이면 제거.
  *   설명 수정은 도메인상 version+1 대상이다(웹 UI updateNode와 동일).
- * - 성공: 200 { ok: true, node: { id, level, description, version } }
+ * - `status`: **REQUIREMENT 노드만** 허용(웹 updateNodeStatus와 동일 규칙).
+ *   비DONE→DONE이면 completedAt 기록 + 예약된 완료 알림 발송, DONE→다른 상태면 completedAt 해제.
+ *   상태 변경은 version 증가 대상이 아니다.
+ * - 성공: 200 { ok: true, node: { id, level, description?, version?, status?, completedAt? } }
  */
 export async function PATCH(
   request: Request,
@@ -231,7 +235,7 @@ export async function PATCH(
     );
   }
 
-  // 3) 바디 파싱 + description 검증 (string | null 만 허용)
+  // 3) 바디 파싱
   let body: NodePatchBody;
   try {
     body = (await request.json()) as NodePatchBody;
@@ -241,30 +245,48 @@ export async function PATCH(
       { status: 400 },
     );
   }
-  if (
-    body.description !== null &&
-    typeof body.description !== "string"
-  ) {
+
+  const hasDescription = "description" in body;
+  const hasStatus = "status" in body;
+  if (!hasDescription && !hasStatus) {
+    return NextResponse.json(
+      { ok: false, error: "수정할 필드가 없습니다." },
+      { status: 400 },
+    );
+  }
+
+  // description 검증 (string | null 만 허용)
+  if (hasDescription && body.description !== null && typeof body.description !== "string") {
     return NextResponse.json(
       { ok: false, error: "description 은 문자열이어야 합니다." },
       { status: 400 },
     );
   }
-  // 문자열이면 trim, 빈 문자열·null은 설명 제거(null 저장).
-  const description =
-    typeof body.description === "string"
-      ? body.description.trim() || null
-      : null;
+  // status 검증 (유효한 NodeStatus 값만)
+  if (hasStatus && !isNodeStatus(body.status)) {
+    return NextResponse.json(
+      { ok: false, error: "status 는 DRAFT, IN_PROGRESS, DONE 중 하나여야 합니다." },
+      { status: 400 },
+    );
+  }
 
   // 4) 노드 조회
   const node = await prisma.node.findUnique({
     where: { id: nodeId },
-    select: { id: true, projectId: true },
+    select: { id: true, level: true, projectId: true },
   });
   if (!node) {
     return NextResponse.json(
       { ok: false, error: "존재하지 않는 노드입니다." },
       { status: 404 },
+    );
+  }
+
+  // status 변경은 REQUIREMENT 노드만 가능(웹 UI와 동일).
+  if (hasStatus && node.level !== "REQUIREMENT") {
+    return NextResponse.json(
+      { ok: false, error: "상태(status)는 요구사항(REQUIREMENT) 노드만 변경할 수 있습니다." },
+      { status: 422 },
     );
   }
 
@@ -277,12 +299,43 @@ export async function PATCH(
     );
   }
 
-  // 6) 갱신 (설명 수정은 version+1)
-  const updated = await prisma.node.update({
-    where: { id: nodeId },
-    data: { description, version: { increment: 1 } },
-    select: { id: true, level: true, description: true, version: true },
-  });
+  // 6) 갱신
+  const result: {
+    id: number;
+    level: string;
+    description?: string | null;
+    version?: number;
+    status?: string;
+    completedAt?: string | null;
+  } = { id: node.id, level: node.level };
 
-  return NextResponse.json({ ok: true, node: updated });
+  if (hasDescription) {
+    // 문자열이면 trim, 빈 문자열·null은 설명 제거(null 저장). 설명 수정은 version+1.
+    const description =
+      typeof body.description === "string"
+        ? body.description.trim() || null
+        : null;
+    const updated = await prisma.node.update({
+      where: { id: nodeId },
+      data: { description, version: { increment: 1 } },
+      select: { description: true, version: true },
+    });
+    result.description = updated.description;
+    result.version = updated.version;
+  }
+
+  if (hasStatus) {
+    // 웹 updateNodeStatus와 동일: completedAt 처리 + 완료 알림 발송.
+    const updated = await applyNodeStatus(
+      nodeId,
+      body.status as Parameters<typeof applyNodeStatus>[1],
+      auth.memberId,
+    );
+    result.status = updated.status;
+    result.completedAt = updated.completedAt
+      ? updated.completedAt.toISOString()
+      : null;
+  }
+
+  return NextResponse.json({ ok: true, node: result });
 }
