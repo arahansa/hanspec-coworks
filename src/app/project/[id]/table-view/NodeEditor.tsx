@@ -261,8 +261,25 @@ export function NodeEditor({ projectId, modules }: Props) {
     [modules.length, pathname, router, searchParams],
   );
 
-  // "진행중만 보기" 필터. 화면 상태로만 관리(새로고침 시 초기화).
-  const [inProgressOnly, setInProgressOnly] = useState(false);
+  // "진행중만 보기" 필터. 선택 상태를 URL 쿼리(?inProgress=1)에 저장해
+  // 새로고침해도 유지된다(task 50). 모듈 필터(#220)와 동일한 패턴.
+  const [inProgressOnly, setInProgressOnly] = useState(
+    () => searchParams.get("inProgress") === "1",
+  );
+
+  /** 진행중만 토글을 변경하고 URL 쿼리(?inProgress=1)도 함께 갱신한다.
+   *  꺼짐(기본값)이면 쿼리를 제거해 URL을 깔끔히 유지한다. */
+  const updateInProgressOnly = useCallback(
+    (next: boolean) => {
+      setInProgressOnly(next);
+      const params = new URLSearchParams(searchParams.toString());
+      if (next) params.set("inProgress", "1");
+      else params.delete("inProgress");
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
   // 요구사항 셀의 태그 배지 표시 여부. 모든 요구사항은 그대로 나오고 배지만 토글한다.
   const [showTags, setShowTags] = useState(true);
   // 모듈 목록이 바뀌면(추가/삭제) 동기화한다.
@@ -375,7 +392,7 @@ export function NodeEditor({ projectId, modules }: Props) {
             <input
               type="checkbox"
               checked={inProgressOnly}
-              onChange={(e) => setInProgressOnly(e.target.checked)}
+              onChange={(e) => updateInProgressOnly(e.target.checked)}
               className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600"
             />
             진행중만
