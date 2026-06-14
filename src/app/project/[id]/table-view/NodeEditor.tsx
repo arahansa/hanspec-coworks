@@ -3,8 +3,8 @@
 // 셀은 인라인 편집(blur 자동 저장, version+1). 상세(ⓘ) 아이콘으로 우측 상세 패널.
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   createModule,
   createFeature,
@@ -201,8 +201,26 @@ function rowKey(row: Row, i: number): string {
   }
 }
 
+/** URL 쿼리 `modules` 값을 모듈 id 집합으로 파싱한다.
+ *  - 파라미터 자체가 없으면(=null) null을 반환해 "기본(전체 선택)"과 구분한다.
+ *  - 콤마 구분 정수만 추리며, 현재 존재하는 모듈 id로 교차해 유효성을 보장한다.
+ *  - 빈 문자열(`modules=`)은 "모두 해제"로 해석해 빈 집합을 반환한다. */
+function parseModulesParam(
+  raw: string | null,
+  validIds: Set<number>,
+): Set<number> | null {
+  if (raw === null) return null;
+  const ids = raw
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isInteger(n) && validIds.has(n));
+  return new Set(ids);
+}
+
 export function NodeEditor({ projectId, modules }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
@@ -212,10 +230,37 @@ export function NodeEditor({ projectId, modules }: Props) {
   const [draggingReqId, setDraggingReqId] = useState<number | null>(null);
   const [dropFeatureId, setDropFeatureId] = useState<number | null>(null);
 
-  // 모듈 필터: 선택된 모듈 id 집합. 초기엔 전체 선택.
+  // 모듈 필터: 선택된 모듈 id 집합. 선택 상태는 URL 쿼리(?modules=1,2)에 저장하여
+  // 새로고침해도 복원된다(task 49). 쿼리가 없으면 기본값=전체 선택.
+  const validIds = new Set(modules.map((m) => m.id));
   const [selectedModuleIds, setSelectedModuleIds] = useState<Set<number>>(
-    () => new Set(modules.map((m) => m.id)),
+    () =>
+      parseModulesParam(searchParams.get("modules"), validIds) ??
+      new Set(modules.map((m) => m.id)),
   );
+
+  /** 선택을 변경하고 URL 쿼리(?modules=)도 함께 갱신한다.
+   *  전체 선택이면 쿼리를 제거(기본값)해 URL을 깔끔히 유지한다. */
+  const updateSelectedModules = useCallback(
+    (next: Set<number>) => {
+      setSelectedModuleIds(next);
+      const params = new URLSearchParams(searchParams.toString());
+      const isAll = next.size === modules.length && modules.length > 0;
+      if (isAll) {
+        params.delete("modules");
+      } else {
+        // id 순으로 정렬해 동일 선택이면 URL도 동일하게 유지한다.
+        params.set(
+          "modules",
+          [...next].sort((a, b) => a - b).join(","),
+        );
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [modules.length, pathname, router, searchParams],
+  );
+
   // "진행중만 보기" 필터. 화면 상태로만 관리(새로고침 시 초기화).
   const [inProgressOnly, setInProgressOnly] = useState(false);
   // 요구사항 셀의 태그 배지 표시 여부. 모든 요구사항은 그대로 나오고 배지만 토글한다.
@@ -322,7 +367,7 @@ export function NodeEditor({ projectId, modules }: Props) {
           <ModuleFilter
             modules={modules.map((m) => ({ id: m.id, name: m.name }))}
             selected={selectedModuleIds}
-            onChange={setSelectedModuleIds}
+            onChange={updateSelectedModules}
           />
         )}
         {modules.length > 0 && (
