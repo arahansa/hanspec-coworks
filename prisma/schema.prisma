@@ -44,6 +44,7 @@ model Member {
   sentRequests     RequestNotification[]    @relation("SentRequests")
   receivedRequests RequestNotification[]    @relation("ReceivedRequests")
   completeReservations CompleteNotification[]
+  nodeMessages     NodeMessage[]
 }
 
 /// 프로젝트 정보.
@@ -104,6 +105,7 @@ model Node {
   completeTargets  CompleteNotification[] @relation("CompleteTarget")
   relationsA NodeRelation[] @relation("RelationA")
   relationsB NodeRelation[] @relation("RelationB")
+  messages   NodeMessage[]
 }
 
 /// 요구사항 간 "관련" 연결. 무방향 — 항상 nodeAId < nodeBId로 정규화 저장하여
@@ -295,4 +297,52 @@ model AccessToken {
   member Member @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("access_token")
+}
+
+/// 메시지 작성 주체. (01-talk-ai-user.md)
+enum MessageRole {
+  CLAUDE // 터미널 세션이 작성
+  USER // 사람이 웹 UI에서 작성
+}
+
+/// 메시지 종류. (01-talk-ai-user.md)
+enum MessageKind {
+  QUESTION // CLAUDE가 막혀 던지는 질문 (options 동반 가능)
+  ANSWER // USER가 QUESTION에 단 답
+  INSTRUCTION // USER가 자발적으로 던지는 추가 지시
+}
+
+/// 메시지 상태. ANSWER는 상태 전이가 없어 null로 둔다. (01-talk-ai-user.md)
+enum MessageStatus {
+  PENDING // QUESTION: 답 대기 / INSTRUCTION: 픽업 대기
+  ANSWERED // QUESTION: 답이 달림
+  ACKNOWLEDGED // INSTRUCTION: Claude가 픽업함
+}
+
+/// 한 요구사항(Node) 아래의 양방향 대화 스레드.
+/// 웹 UI(USER)와 터미널 세션(CLAUDE)이 비동기로 주고받는다.
+/// 참조: docs/feature/01-talk-ai-user.md
+model NodeMessage {
+  id             Int            @id @default(autoincrement())
+  nodeId         Int
+  role           MessageRole
+  kind           MessageKind
+  status         MessageStatus? // ANSWER는 상태 전이 없음(null)
+  body           String         @db.Text // 질문/답/지시 본문
+  options        Json? // QUESTION의 선택지 배열
+  selectedOption Int? // ANSWER가 고른 옵션 인덱스(자유입력이면 null)
+  consumedAt     DateTime? // Claude가 픽업·처리한 시각 (중복 픽업 방지)
+  parentId       Int? // ANSWER → 부모 QUESTION
+  authorMemberId Int // 토큰 소유자(=작성 멤버)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  node    Node          @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  parent  NodeMessage?  @relation("MessageReply", fields: [parentId], references: [id])
+  replies NodeMessage[] @relation("MessageReply")
+  author  Member        @relation(fields: [authorMemberId], references: [id])
+
+  @@index([nodeId, createdAt])
+  @@index([status])
+  @@map("node_message")
 }
