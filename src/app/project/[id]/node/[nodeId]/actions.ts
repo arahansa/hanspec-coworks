@@ -490,3 +490,126 @@ export async function listNodeEnvNames(nodeId: number): Promise<EnvNamesResult> 
   });
   return { ok: true, names: envs.map((e) => e.name) };
 }
+
+// ── coworks ↔ Claude 양방향 대화 (01-talk-ai-user.md) ──────────────────────
+
+export type MessageActionResult =
+  | { ok: true; messageId: number }
+  | { ok: false; error: string };
+
+/**
+ * 사용자(USER)가 Claude의 QUESTION에 답한다(웹 UI).
+ * - 세션 로그인 검증, 대상이 QUESTION·미답변인지 검증.
+ * - selectedOption(버튼) 또는 body(자유 텍스트) 중 최소 하나 필요.
+ * - ANSWER 생성 + 부모 QUESTION을 ANSWERED로 전환(한 트랜잭션).
+ */
+export async function answerMessage(
+  questionId: number,
+  input: { selectedOption?: number; body?: string },
+): Promise<MessageActionResult> {
+  const member = await getCurrentMember();
+  if (!member) redirect("/signin");
+
+  const question = await prisma.nodeMessage.findUnique({
+    where: { id: questionId },
+    select: {
+      id: true,
+      nodeId: true,
+      kind: true,
+      status: true,
+      options: true,
+      node: { select: { projectId: true } },
+    },
+  });
+  if (!question) return { ok: false, error: "존재하지 않는 메시지입니다." };
+  if (question.kind !== "QUESTION") {
+    return { ok: false, error: "질문에만 답할 수 있습니다." };
+  }
+  if (question.status === "ANSWERED") {
+    return { ok: false, error: "이미 답변된 질문입니다." };
+  }
+
+  const options = Array.isArray(question.options)
+    ? question.options.map((o) => String(o))
+    : [];
+  let selectedOption: number | null = null;
+  if (input.selectedOption !== undefined && input.selectedOption !== null) {
+    const idx = input.selectedOption;
+    if (!Number.isInteger(idx) || idx < 0 || idx >= options.length) {
+      return { ok: false, error: "선택한 옵션이 올바르지 않습니다." };
+    }
+    selectedOption = idx;
+  }
+  const freeText = typeof input.body === "string" ? input.body.trim() : "";
+  if (selectedOption === null && freeText.length === 0) {
+    return { ok: false, error: "답변을 입력하거나 선택지를 골라 주세요." };
+  }
+  const answerBody =
+    freeText.length > 0 ? freeText : options[selectedOption as number];
+
+  const answer = await prisma.$transaction(async (tx) => {
+    const created = await tx.nodeMessage.create({
+      data: {
+        nodeId: question.nodeId,
+        role: "USER",
+        kind: "ANSWER",
+        status: null,
+        body: answerBody,
+        selectedOption,
+        parentId: question.id,
+        authorMemberId: member.id,
+      },
+      select: { id: true },
+    });
+    await tx.nodeMessage.update({
+      where: { id: question.id },
+      data: { status: "ANSWERED" },
+    });
+    return created;
+  });
+
+  revalidatePath(
+    `/project/${question.node.projectId}/node/${question.nodeId}`,
+  );
+  return { ok: true, messageId: answer.id };
+}
+
+/**
+ * 사용자(USER)가 자유 추가 지시(INSTRUCTION)를 남긴다(웹 UI).
+ * - 세션 로그인 + 노드 존재·REQUIREMENT 검증.
+ * - PENDING으로 생성되어 Claude가 /loop 폴링으로 픽업한다.
+ */
+export async function addInstruction(
+  nodeId: number,
+  body: string,
+): Promise<MessageActionResult> {
+  const member = await getCurrentMember();
+  if (!member) redirect("/signin");
+
+  const guard = await requireRequirementNode(nodeId);
+  if (!guard.ok) {
+    const r = guard.result;
+    return { ok: false, error: r.ok ? "잘못된 요청입니다." : r.error };
+  }
+
+  const text = typeof body === "string" ? body.trim() : "";
+  if (text.length === 0) return { ok: false, error: "지시 내용을 입력해 주세요." };
+  if (text.length > 8000) {
+    return { ok: false, error: "지시는 8000자 이내여야 합니다." };
+  }
+
+  const created = await prisma.nodeMessage.create({
+    data: {
+      nodeId: guard.node.id,
+      role: "USER",
+      kind: "INSTRUCTION",
+      status: "PENDING",
+      body: text,
+      authorMemberId: member.id,
+    },
+    select: { id: true },
+  });
+
+  revalidatePath(`/project/${guard.node.projectId}/node/${guard.node.id}`);
+  return { ok: true, messageId: created.id };
+}

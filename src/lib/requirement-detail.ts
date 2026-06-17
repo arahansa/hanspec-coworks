@@ -74,6 +74,21 @@ export async function loadRequirementDetail(
         select: { nodeA: { select: { id: true, name: true } } },
       },
       requests: { select: { receiverId: true, groupId: true } },
+      // coworks ↔ Claude 양방향 대화 스레드(시간순). (01-talk-ai-user.md)
+      messages: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          role: true,
+          kind: true,
+          status: true,
+          body: true,
+          options: true,
+          selectedOption: true,
+          parentId: true,
+          createdAt: true,
+        },
+      },
       // 완료 알림 예약(이 노드가 DONE이 되면 발송). (12)
       completeTriggers: {
         orderBy: { id: "asc" },
@@ -140,6 +155,18 @@ export async function loadRequirementDetail(
       receiverName: r.receiver?.username ?? null,
       groupId: r.groupId,
       groupName: r.group?.name ?? null,
+    })),
+    // 대화 스레드. options는 Json이므로 문자열 배열로 정규화. (01-talk-ai-user.md)
+    messages: node.messages.map((m) => ({
+      id: m.id,
+      role: m.role,
+      kind: m.kind,
+      status: m.status,
+      body: m.body,
+      options: Array.isArray(m.options) ? m.options.map((o) => String(o)) : null,
+      selectedOption: m.selectedOption,
+      parentId: m.parentId,
+      createdAt: m.createdAt.toISOString(),
     })),
   };
 

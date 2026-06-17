@@ -18,6 +18,7 @@ import {
   type CompleteReservation,
 } from "./CompleteNotificationSection";
 import { IdCopyButtons } from "./IdCopyButtons";
+import { MessageSection, type MessageItem } from "./MessageSection";
 
 export type Ancestor = { id: number; name: string; level: string };
 
@@ -40,6 +41,8 @@ export type RequirementDetailData = {
   // 완료 알림 예약 (12-complete-notification.md)
   siblings: SiblingRequirement[];
   reservations: CompleteReservation[];
+  // coworks ↔ Claude 양방향 대화 스레드 (01-talk-ai-user.md)
+  messages: MessageItem[];
 };
 
 const LEVEL_LABEL: Record<string, string> = {
@@ -102,6 +105,7 @@ export function RequirementDetailBody({ data }: { data: RequirementDetailData })
         reservations={data.reservations}
       />
       <TaskSection nodeId={data.id} tasks={data.tasks} envNames={data.envNames} />
+      <MessageSection nodeId={data.id} messages={data.messages} />
     </div>
   );
 }
