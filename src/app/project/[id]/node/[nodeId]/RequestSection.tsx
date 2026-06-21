@@ -3,6 +3,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useRequirementMutation } from "./RequirementMutationContext";
 import { sendRequest } from "./actions";
 
 export type GroupOption = { id: number; name: string };
@@ -25,6 +26,7 @@ export function RequestSection({
   requestedGroupIds,
 }: Props) {
   const router = useRouter();
+  const { onMutated } = useRequirementMutation();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -66,6 +68,7 @@ export function RequestSection({
       setDone(`${label}에게 확인 요청을 보냈습니다.`);
       // 서버에서 "이미 보낸 대상" 목록을 다시 받아와 요청됨 표시를 갱신한다.
       router.refresh();
+      onMutated();
     });
   }
 

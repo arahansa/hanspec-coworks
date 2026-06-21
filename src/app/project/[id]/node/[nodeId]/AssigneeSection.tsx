@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useRequirementMutation } from "./RequirementMutationContext";
 import { addAssignee, removeAssignee } from "./actions";
 
 export type AssigneeItem = { id: number; username: string };
@@ -17,6 +18,7 @@ type Props = {
 
 export function AssigneeSection({ nodeId, assignees }: Props) {
   const router = useRouter();
+  const { onMutated } = useRequirementMutation();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -56,6 +58,7 @@ export function AssigneeSection({ nodeId, assignees }: Props) {
         return;
       }
       router.refresh();
+      onMutated();
     });
   }
 
@@ -68,6 +71,7 @@ export function AssigneeSection({ nodeId, assignees }: Props) {
         return;
       }
       router.refresh();
+      onMutated();
     });
   }
 
@@ -122,7 +126,9 @@ export function AssigneeSection({ nodeId, assignees }: Props) {
         </div>
 
         {open && candidates.length > 0 && (
-          <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+          // 담당자 섹션은 상세 패널(NodeDetailPanel) 하단에 위치한다. 패널은 overflow-y-auto로
+          // 잘리므로, 후보 목록을 입력칸 아래(top-full)가 아닌 위(bottom-full)로 펼쳐 가림을 피한다.
+          <ul className="absolute bottom-full z-10 mb-1 w-full overflow-hidden rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
             {candidates.map((c) => (
               <li key={c.id}>
                 <button

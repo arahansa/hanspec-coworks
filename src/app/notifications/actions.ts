@@ -42,3 +42,32 @@ export async function checkRequest(requestId: number): Promise<CheckResult> {
   revalidatePath("/notifications");
   return { ok: true };
 }
+
+/**
+ * 보낸 확인 요청을 철회(삭제)한다.
+ * - 보낸 본인(senderId)만 삭제할 수 있다.
+ * - 아직 확인되지 않은(checked=false) 요청만 삭제할 수 있다. 확인된 요청은 기록으로 보존.
+ * - 이미 삭제된 경우는 멱등 처리한다.
+ */
+export async function deleteRequest(requestId: number): Promise<CheckResult> {
+  const memberId = await getCurrentMemberId();
+  if (memberId === null) redirect("/signin");
+
+  const req = await prisma.requestNotification.findUnique({
+    where: { id: requestId },
+    select: { id: true, senderId: true, checked: true },
+  });
+  if (!req) return { ok: true }; // 이미 삭제됨 — 멱등
+
+  if (req.senderId !== memberId) {
+    return { ok: false, error: "본인이 보낸 요청만 취소할 수 있습니다." };
+  }
+  if (req.checked) {
+    return { ok: false, error: "이미 확인된 요청은 취소할 수 없습니다." };
+  }
+
+  await prisma.requestNotification.delete({ where: { id: req.id } });
+
+  revalidatePath("/notifications");
+  return { ok: true };
+}

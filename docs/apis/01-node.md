@@ -1,7 +1,7 @@
 ---
-version: "1.3"
+version: "1.7"
 created: "2026-06-02"
-updated: "2026-06-04"
+updated: "2026-06-15"
 author: "arahansa"
 ---
 
@@ -33,6 +33,10 @@ Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
   - REQUIREMENT → `requirement` + `feature` + `module`
   - FEATURE → `feature` + `module` (requirement=null)
   - MODULE → `module` (feature/requirement=null)
+- **관련 요구사항(`related`)**: 대상 노드에 연결된 "관련 요구사항"을 함께 반환한다(무방향).
+  연결은 REQUIREMENT끼리만 존재하므로 FEATURE/MODULE에서는 빈 배열이다. 각 항목은
+  `id·name·description·status·endpoint`를 담아, 연결된 요구사항의 API 정보(endpoint 등)를
+  추가 호출 없이 바로 쓸 수 있다. (v1.4)
 
 ## 응답
 
@@ -44,9 +48,14 @@ Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
   "projectId": 6,
   "module":      { "id": 12, "name": "...", "description": "..." },
   "feature":     { "id": 60, "name": "...", "description": "...", "endpoint": "GET /api/..." },
-  "requirement": { "id": 75, "name": "...", "description": "...", "status": "IN_PROGRESS", "version": 3 }
+  "requirement": { "id": 75, "name": "...", "description": "...", "status": "IN_PROGRESS", "version": 3 },
+  "related": [
+    { "id": 76, "name": "출석체크 API", "description": "...", "status": "DONE", "endpoint": "POST /api/attendance" }
+  ]
 }
 ```
+
+`related`는 항상 배열이며, 연결된 관련 요구사항이 없으면 `[]`이다. REQUIREMENT가 아닌 노드도 `[]`.
 
 에러: `{ "ok": false, "error": "..." }`
 - `401` 토큰 없음/무효/만료
@@ -78,11 +87,12 @@ const res = await fetch(`${base}/api/nodes/${reqId}`, {
 const data = await res.json();
 if (!data.ok) throw new Error(data.error);
 // data.requirement / data.feature / data.module
+// data.related: 연결된 관련 요구사항[] (각 항목에 endpoint·status 포함)
 ```
 
 ## Task API (2026-06-04 추가)
 
-요청 사양: `kpopfandom-front/docs/apis/03-task-create-api-design.md` (호출 측 작성).
+요청 사양: 호출하는 프로젝트(외부) 작성.
 
 ### `POST /api/tasks` — REQUIREMENT 노드에 Task 생성
 
@@ -110,25 +120,88 @@ Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
 - 응답: `{ ok: true, nodeId, tasks: [{ id, name, endpoint, description, progress }] }`.
 - 등록 후 검증/멱등 처리에 사용.
 
-## Node 설명 업데이트 API (2026-06-04 추가)
+## Node 설명·상태 업데이트 API (2026-06-04 추가, 2026-06-15 status 추가)
 
-요청 사양: `kpopfandom-front/docs/apis/04-node-update-api-design.md`.
+요청 사양: 호출하는 프로젝트(외부) 작성.
 
-### `PATCH /api/nodes/:id` — 노드 설명(description) 업데이트
+### `PATCH /api/nodes/:id` — 노드 설명(description)·상태(status) 업데이트
 
 ```
 PATCH {HANSPEC_COWORKS_BASE_URL}/api/nodes/:id
 Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
 Header: Content-Type: application/json
-Body: { "description": "..." | null }
+Body: { "description"?: "..." | null, "status"?: "DRAFT" | "IN_PROGRESS" | "DONE" }
 ```
 
 - 인증·권한은 `GET /api/nodes/:id`와 동일(토큰 7일, SUPER 우회 + projectMember).
-- **노드 레벨 제약 없음**(MODULE/FEATURE/REQUIREMENT 모두 설명 가능).
-- `description`: 문자열이면 trim(빈 문자열은 null), `null`이면 설명 제거.
-  설명 수정은 도메인상 `version`+1 대상(웹 UI `updateNode`와 동일).
-- 성공: `200 { ok: true, node: { id, level, description, version } }`.
-- 에러: `400`(잘못된 id/타입), `401`(토큰), `403`(권한), `404`(노드 없음).
+- **부분 수정**: 바디에 포함된 키만 갱신. `description`/`status` 둘 다 없으면 `400`.
+- `description`: **노드 레벨 제약 없음**(MODULE/FEATURE/REQUIREMENT 모두 가능).
+  문자열이면 trim(빈 문자열은 null), `null`이면 설명 제거. 설명 수정은 `version`+1 대상.
+- `status`: **REQUIREMENT 노드만** 변경 가능(웹 UI `updateNodeStatus`와 동일 규칙).
+  - 비DONE→DONE: `completedAt` 기록 + 예약된 완료 알림 발송.
+  - DONE→다른 상태: `completedAt` 해제(null). 상태 변경은 `version` 증가 대상이 아니다.
+  - **외부 프로젝트는 이 API로 완료(DONE) 처리한다(coworks DB 직접 접근 불필요).**
+- 성공: `200 { ok: true, node: { id, level, description?, version?, status?, completedAt? } }`
+  (포함한 필드만 응답에 담긴다).
+- 에러: `400`(잘못된 id/타입/수정 필드 없음), `401`(토큰), `403`(권한), `404`(노드 없음),
+  `422`(REQUIREMENT가 아닌 노드에 status 지정).
+
+## Task 수정 API (2026-06-12 추가)
+
+요청 사양: 호출하는 프로젝트(외부) 작성.
+
+### `PATCH /api/tasks/:id` — Task 부분 수정 (진행도/설명/이름/endpoint)
+
+```
+PATCH {HANSPEC_COWORKS_BASE_URL}/api/tasks/:id
+Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
+Header: Content-Type: application/json
+Body: { "progress": 100, "description": "...", "name": "...", "endpoint": "..." }
+```
+
+- 인증·권한은 `GET /api/nodes/:id`와 동일(토큰 7일, SUPER 우회 + projectMember).
+  권한 기준 projectId는 Task → Node 조인으로 얻는다.
+- **부분 수정(PATCH semantics)**: 바디에 **포함된 키만** 갱신. 누락된 키는 기존 값 유지.
+- 필드 규칙은 생성 API와 동일(`src/lib/task.ts` 공유).
+  - `progress`(정수 0~100), `description`(trim 후 비어있지 않을 것 — null/빈 값 불가),
+    `name`(≤50, 빈 값·`null`은 null), `endpoint`(≤255, 빈 값·`null`은 null).
+- 수정 대상 키가 0개(빈 바디 포함)면 `400`("수정할 필드가 없습니다.").
+- 성공: `200 { ok: true, task: { id, nodeId, name, endpoint, description, progress } }`
+  (수정 후 전체를 돌려줘 호출 측이 재조회 없이 검증 가능).
+- 에러: `400`(잘못된 id/검증/수정 필드 없음), `401`(토큰), `403`(권한), `404`(task 없음).
+  수정은 기존 Task가 대상이라 노드 레벨 검증이 없으므로 `422` 없음.
+
+### `GET /api/tasks/:id` — Task 단건 조회
+
+```
+GET {HANSPEC_COWORKS_BASE_URL}/api/tasks/:id
+Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
+```
+
+- 수정 전 현재 상태 확인·멱등 처리에 사용. 인증/권한 동일.
+- 응답: `{ ok: true, task: { id, nodeId, name, endpoint, description, progress } }`.
+
+## 나의 작업 API (2026-06-12 추가)
+
+요구사항: #195 "나의 작업 페이지 UI 동작". 웹 페이지(`/project/:id/myworks`)와 함께 추가.
+
+### `GET /api/my-works` — 토큰 멤버가 담당자인 요구사항 목록
+
+```
+GET {HANSPEC_COWORKS_BASE_URL}/api/my-works?status=DRAFT&projectId=3
+Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
+```
+
+- 토큰 멤버가 **담당자(assignee)로 할당된 REQUIREMENT** 목록을 반환한다.
+- 쿼리(모두 선택):
+  - `status` — `DRAFT`(기본) | `IN_PROGRESS` | `DONE` | `ALL`.
+    기본이 초안인 이유: "내가 해야 할 작업"을 외부 도구(에이전트 루프 등)가
+    한 세션당 하나씩 집어 진행하는 용도. (#195)
+  - `projectId` — 특정 프로젝트로 한정.
+- 자기 자신에게 할당된 노드만 반환하므로 별도 프로젝트 권한 검증(403)은 없다.
+- 정렬: 상태(초안→진행중→완료) 순, 같은 상태는 id 순.
+- 성공: `200 { ok: true, works: [{ nodeId, projectId, name, description, status }] }`
+- 에러: `400`(잘못된 status/projectId), `401`(토큰).
 
 ## 한계 / 차후 과제
 
@@ -136,9 +209,13 @@ Body: { "description": "..." | null }
 - 멤버-프로젝트 소속 관리 UI(admin)는 미구현. 현재는 전체 멤버를 백필해 둠.
 
 ## 산출 코드
-- `src/app/api/nodes/[id]/route.ts` — GET 노드 라우트 + PATCH 설명 업데이트 (2026-06-04)
+- `src/app/api/nodes/[id]/route.ts` — GET 노드 라우트 + PATCH 설명/상태(status) 업데이트 (2026-06-04, status 2026-06-15)
+- `src/lib/node-status.ts` — 노드 상태 전환 로직(completedAt·완료 알림). Server Action·API 공유 (2026-06-15)
 - `src/app/api/tasks/route.ts` — POST Task 생성 라우트 (2026-06-04)
 - `src/app/api/nodes/[id]/tasks/route.ts` — GET Task 목록 라우트 (2026-06-04)
+- `src/app/api/tasks/[id]/route.ts` — GET Task 단건 + PATCH Task 수정 라우트 (2026-06-12)
+- `src/app/api/my-works/route.ts` — GET 나의 작업 목록 라우트 (2026-06-12)
+- `src/app/project/[id]/myworks/page.tsx` — 나의 작업 웹 페이지 (2026-06-12)
 - `src/lib/access-token.ts` — `authenticateByToken`
 - `src/lib/api-auth.ts` — `authenticateRequest`, `authorizeProjectAccess` (토큰 API 공통 인증/권한)
 - `src/lib/task.ts` — Task 필드 검증/정규화 (Server Action·API 공유)

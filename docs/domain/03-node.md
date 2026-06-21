@@ -1,7 +1,7 @@
 ---
-version: "1.4"
+version: "1.6"
 created: "2026-05-30"
-updated: "2026-06-02"
+updated: "2026-06-08"
 author: "arahansa"
 ---
 
@@ -12,7 +12,7 @@ author: "arahansa"
 id: 멤버의 고유 식별자(숫자) auto increment
 name : 노드 이름(varchar 255)
 level : 노드 레벨 (varchar 20)(ENUM) - 아래에 설명
-description : 노드 설명 (text)
+description : 노드 설명 (text) — **마크다운(Markdown) 원본**을 그대로 저장한다 (아래 "설명 마크다운 렌더링" 참고)
 parent_id : 상위 노드의 id (number)
 project_id : 노드가 속한 프로젝트의 id (number)
 version : 버전 (number)
@@ -108,4 +108,33 @@ model Node {
 - **담당자**: `node_assignee` 조인 테이블(복합 PK `(nodeId, memberId)`)로 한 REQUIREMENT에 여러 담당자 지정. 상세에서 `@` 검색 자동완성으로 추가/제거.
 - **멤버 API**: `GET /api/members?q=<prefix>` — username prefix(대소문자 무시) 검색, 비로그인 401. 비밀번호 등 민감 필드 미반환.
 - **산출 코드**: `prisma/schema.prisma`(NodeStatus·Node.status·NodeAssignee), `src/app/api/members/route.ts`, `src/app/project/[id]/node/[nodeId]/{actions.ts,StatusSection.tsx,AssigneeSection.tsx,node-status.ts,page.tsx}`.
+
+
+### 설명 마크다운 렌더링 - 구현 완료 (2026-06-05)
+
+노드 `description`을 **마크다운으로 작성하고 렌더링**한다. 별도의 마크다운 전용 컬럼/영역을 두지 않고, 기존 `description`(text) 컬럼에 마크다운 원본을 그대로 저장한다(마크다운은 일반 텍스트의 상위호환이므로 plain text도 유효). **스키마/마이그레이션 변경 없음.**
+
+- **방식(결정)**: A안 — 같은 `description` 컬럼에 마크다운 원본 저장 + 보기 시 HTML 렌더링. B안(별도 컬럼 분리)은 불필요한 복잡도라 채택하지 않았다.
+- **편집/보기 UX**: "보기(렌더링) 기본 + `편집` 버튼으로 textarea 전환" (GitHub 코멘트 방식). 저장하면 다시 보기로 돌아간다. 빈 설명은 "설명이 없습니다."로 표시.
+- **지원 문법**: GFM(`remark-gfm`) — 코드블록(```), 표, 체크박스, 굵게/리스트 등. 코드블록은 `rehype-highlight`로 언어별 구문 하이라이팅(github 라이트/다크 테마).
+- **XSS 안전성**: `react-markdown`은 기본적으로 raw HTML을 통과시키지 않는다(`rehype-raw` 미사용). 다중 사용자 협업 앱이므로 raw HTML 허용은 켜지 않는다.
+- **적용 위치(3곳 공통)**: 요구사항 상세 페이지, 상세 모달, 테이블뷰 드로어 패널. 공용 컴포넌트(`DescriptionEditor`/`MarkdownView`)로 일관 처리한다.
+- **산출 코드**: `src/components/markdown/{MarkdownView,DescriptionEditor}.tsx`, `src/app/project/[id]/node/[nodeId]/DescriptionSection.tsx`, `src/app/project/[id]/table-view/NodeDetailPanel.tsx`, `src/app/globals.css`(`.markdown-body` + hljs 테마). 의존성: `react-markdown`, `remark-gfm`, `rehype-highlight`, `highlight.js`.
+
+### 추가 기능
+어떤 요구사항(REQUIREMENT)이 상태가 완료(DONE)로 변경되면, 완료된 시간을 저장하고 싶어. 
+그리고 별도의 페이지를 만들어서, 오늘 완료된 작업 목록들 보여지게 하고 싶어.
+해당 페이지의 상단에 검색영역을 두고 달력을 하나 둬서, 특정 기간내에 완료된 작업들도 같이 보여지게 하고 싶어.
+검색영역에는 체크박스 - 오늘완료된 작업목록 보기와 달력 이렇게 되면 될 것같아.
+
+### 추가 기능(완료 시각·완료 목록 페이지) - 구현 완료 (2026-06-08)
+
+REQUIREMENT가 DONE이 될 때 완료 시각을 저장하고, 프로젝트별 "완료된 작업" 목록 페이지를 추가했다. 설계: `docs/superpowers/specs/2026-06-08-completed-tasks-page-design.md`.
+
+- **완료 시각**: `Node.completedAt`(`DateTime?`) 컬럼 추가. "마지막 DONE 시각" 의미 — 비DONE→DONE 전환 시 `now()`, DONE→다른 상태 시 `null`로 해제. `version`과 무관(상태 변경은 version 미증가). `updateNodeStatus`의 기존 단일 update에 분기 포함(추가 조회 없음).
+- **목록 페이지**: `/project/[id]/completed`. 서버 컴포넌트가 DONE인 REQUIREMENT를 `completedAt desc`로 조회한다. 각 항목에 소속 경로(`모듈 › 기능`)·완료 시각(`YYYY-MM-DD HH:mm`)·담당자·상세 링크를 표시. 좌측 네비(`PROJECT_TASK_ITEMS`)에 "완료된 작업" 추가.
+- **검색영역(URL 쿼리 필터)**: 체크박스 "오늘 완료된 작업 보기"(`today=1`, 기본 ON) + 네이티브 `date input` 2개(`from`/`to`). 체크박스 ON이면 date input 비활성·무시(today 우선). 기간은 `from` 00:00 ~ `to` 당일 포함. 날짜 경계는 서버 로컬 타임존 기준(다중 사용자/원격 타임존 정확성은 비범위).
+- **산출 코드**: `prisma/schema.prisma`(Node.completedAt), `src/app/project/[id]/node/[nodeId]/actions.ts`(updateNodeStatus), `src/app/project/[id]/completed/{page.tsx,CompletedSearchForm.tsx}`, `src/components/LeftNav.tsx`.
+
+
 

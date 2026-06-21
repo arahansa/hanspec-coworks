@@ -6,6 +6,10 @@ import type { NodeStatus } from "@/generated/prisma/client";
 import { TaskSection, type TaskItem } from "./TaskSection";
 import { StatusSection } from "./StatusSection";
 import { AssigneeSection, type AssigneeItem } from "./AssigneeSection";
+import {
+  RelatedRequirementSection,
+  type RelatedItem,
+} from "./RelatedRequirementSection";
 import { DescriptionSection } from "./DescriptionSection";
 import { RequestSection, type GroupOption } from "./RequestSection";
 import {
@@ -14,11 +18,13 @@ import {
   type CompleteReservation,
 } from "./CompleteNotificationSection";
 import { IdCopyButtons } from "./IdCopyButtons";
+import { MessageSection, type MessageItem } from "./MessageSection";
 
 export type Ancestor = { id: number; name: string; level: string };
 
 export type RequirementDetailData = {
   id: number;
+  projectId: number;
   name: string;
   version: number;
   description: string | null;
@@ -26,6 +32,7 @@ export type RequirementDetailData = {
   projectName: string;
   ancestors: Ancestor[];
   assignees: AssigneeItem[];
+  related: RelatedItem[];
   tasks: TaskItem[];
   envNames: string[];
   groups: GroupOption[];
@@ -34,6 +41,8 @@ export type RequirementDetailData = {
   // 완료 알림 예약 (12-complete-notification.md)
   siblings: SiblingRequirement[];
   reservations: CompleteReservation[];
+  // coworks ↔ Claude 양방향 대화 스레드 (01-talk-ai-user.md)
+  messages: MessageItem[];
 };
 
 const LEVEL_LABEL: Record<string, string> = {
@@ -78,6 +87,11 @@ export function RequirementDetailBody({ data }: { data: RequirementDetailData })
 
       <StatusSection nodeId={data.id} status={data.status} />
       <AssigneeSection nodeId={data.id} assignees={data.assignees} />
+      <RelatedRequirementSection
+        nodeId={data.id}
+        projectId={data.projectId}
+        related={data.related}
+      />
       <RequestSection
         nodeId={data.id}
         groups={data.groups}
@@ -91,6 +105,7 @@ export function RequirementDetailBody({ data }: { data: RequirementDetailData })
         reservations={data.reservations}
       />
       <TaskSection nodeId={data.id} tasks={data.tasks} envNames={data.envNames} />
+      <MessageSection nodeId={data.id} messages={data.messages} />
     </div>
   );
 }
