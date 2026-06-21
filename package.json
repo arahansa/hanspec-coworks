@@ -19,7 +19,8 @@
     "react-markdown": "10.1.0",
     "rehype-highlight": "7.0.2",
     "remark-gfm": "4.0.1",
-    "server-only": "0.0.1"
+    "server-only": "0.0.1",
+    "wiremd": "0.1.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
