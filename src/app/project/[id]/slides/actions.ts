@@ -4,6 +4,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMemberId } from "@/lib/auth";
 
@@ -12,8 +13,8 @@ export type SlideActionResult =
   | { ok: false; error: string };
 
 const TITLE_MAX = 255;
-const CONTENT_MAX = 100_000;
 const COMMENT_MAX = 10_000;
+const DOCUMENT_MAX = 5_000_000; // 직렬화 문자열 길이 상한(바이트 근사)
 
 /** 로그인 여부만 세션 쿠키로 확인한다(기존 웹 페이지 관례와 동일). */
 async function assertAuthenticated(): Promise<void> {
@@ -56,7 +57,7 @@ export async function createSlidePage(
         projectId,
         title: title.trim(),
         position,
-        versions: { create: { version: 1, content: "" } },
+        versions: { create: { version: 1 } },
       },
       select: { id: true },
     });
@@ -250,10 +251,10 @@ export async function removePageFromSection(
 
 // ── 본문(버전) ──────────────────────────────────────────────────────────────
 
-/** 슬라이드(버전)의 본문을 in-place로 수정한다. */
-export async function updateSlideContent(
+/** 슬라이드(버전)의 Excalidraw 장면(document)을 in-place로 저장한다. */
+export async function updateSlideDocument(
   slideId: number,
-  content: string,
+  document: unknown,
 ): Promise<SlideActionResult> {
   const [, slide] = await Promise.all([
     assertAuthenticated(),
@@ -264,14 +265,17 @@ export async function updateSlideContent(
   ]);
   if (!slide) return { ok: false, error: "존재하지 않는 슬라이드입니다." };
 
-  if (typeof content !== "string") {
-    return { ok: false, error: "본문은 문자열이어야 합니다." };
+  if (document === null || typeof document !== "object") {
+    return { ok: false, error: "장면 데이터가 올바르지 않습니다." };
   }
-  if (content.length > CONTENT_MAX) {
-    return { ok: false, error: `본문은 ${CONTENT_MAX}자 이하여야 합니다.` };
+  if (JSON.stringify(document).length > DOCUMENT_MAX) {
+    return { ok: false, error: "장면이 너무 큽니다. 이미지 크기를 줄여 주세요." };
   }
 
-  await prisma.slide.update({ where: { id: slideId }, data: { content } });
+  await prisma.slide.update({
+    where: { id: slideId },
+    data: { document: document as Prisma.InputJsonValue },
+  });
   revalidatePath(`/project/${slide.page.projectId}/slides/${slide.pageId}`);
   return { ok: true, id: slideId };
 }
@@ -295,12 +299,19 @@ export async function createSlideVersion(
   const latest = await prisma.slide.findFirst({
     where: { pageId },
     orderBy: { version: "desc" },
-    select: { version: true, content: true },
+    select: { version: true, document: true },
   });
   const nextVersion = (latest?.version ?? 0) + 1;
 
   const created = await prisma.slide.create({
-    data: { pageId, version: nextVersion, content: latest?.content ?? "" },
+    data: {
+      pageId,
+      version: nextVersion,
+      document:
+        latest?.document == null
+          ? Prisma.DbNull
+          : (latest.document as Prisma.InputJsonValue),
+    },
     select: { id: true },
   });
   revalidatePath(`/project/${page.projectId}/slides/${pageId}`);
