@@ -1,5 +1,6 @@
 // 슬라이드 새 버전 생성 토큰 API. coworks-slide-update 스킬이 호출한다.
 import { NextResponse } from "next/server";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { authenticateRequest, authorizeProjectAccess } from "@/lib/api-auth";
 
@@ -9,8 +10,8 @@ export const dynamic = "force-dynamic";
  * POST /api/slides/pages/:pageId/versions
  * Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
  *
- * 페이지에 새 버전을 만든다. version = 현재 최대+1, 본문은 최신 버전 내용을 복사.
- * 응답: { ok: true, slide: { id, version, content } }
+ * 페이지에 새 버전을 만든다. version = 현재 최대+1, 장면(document)은 최신 버전을 복사.
+ * 응답: { ok: true, slide: { id, version, document } }
  */
 export async function POST(
   request: Request,
@@ -43,13 +44,20 @@ export async function POST(
   const latest = await prisma.slide.findFirst({
     where: { pageId },
     orderBy: { version: "desc" },
-    select: { version: true, content: true },
+    select: { version: true, document: true },
   });
   const nextVersion = (latest?.version ?? 0) + 1;
 
   const created = await prisma.slide.create({
-    data: { pageId, version: nextVersion, content: latest?.content ?? "" },
-    select: { id: true, version: true, content: true },
+    data: {
+      pageId,
+      version: nextVersion,
+      document:
+        latest?.document == null
+          ? Prisma.DbNull
+          : (latest.document as Prisma.InputJsonValue),
+    },
+    select: { id: true, version: true, document: true },
   });
 
   return NextResponse.json({ ok: true, slide: created });

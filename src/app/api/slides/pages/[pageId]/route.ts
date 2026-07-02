@@ -9,8 +9,8 @@ export const dynamic = "force-dynamic";
  * GET /api/slides/pages/:pageId
  * Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
  *
- * 응답: { ok: true, page: { id, title, projectId }, versions: [{ id, version, content }] }
- * versions는 version 내림차순(최신 먼저).
+ * 응답: { ok: true, page: { id, title, projectId }, versions: [{ id, version, document }] }
+ * versions는 version 내림차순(최신 먼저). document는 Excalidraw 장면(없으면 null).
  */
 export async function GET(
   request: Request,
@@ -35,7 +35,7 @@ export async function GET(
       projectId: true,
       versions: {
         orderBy: { version: "desc" },
-        select: { id: true, version: true, content: true },
+        select: { id: true, version: true, document: true },
       },
     },
   });
