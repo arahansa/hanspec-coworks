@@ -368,14 +368,16 @@ model SlidePage {
   @@map("slide_page")
 }
 
-/// 한 페이지(SlidePage)의 한 버전. content는 wiremd(md) 원본.
+/// 한 페이지(SlidePage)의 한 버전. document는 Excalidraw 장면(jsonb).
+/// content(레거시 wiremd 본문)는 캔버스 전환 후 미사용 — nullable로 잔존.
 /// 코멘트는 (1)(2) 마커가 버전별 내용이므로 버전(Slide)에 귀속된다.
-/// 참조: docs/superpowers/specs/2026-06-22-slides-design.md
+/// 참조: docs/superpowers/specs/2026-07-02-slides-canvas-excalidraw-design.md
 model Slide {
   id        Int      @id @default(autoincrement())
   pageId    Int
   version   Int // 페이지 내 버전 번호 (1부터)
-  content   String   @db.Text // wiremd(md) 본문
+  content   String?  @db.Text // 레거시(wiremd). 캔버스 슬라이드는 null.
+  document  Json? // Excalidraw 장면 { elements, appState, files }. 빈 캔버스는 null.
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
