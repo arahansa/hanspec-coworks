@@ -1,19 +1,20 @@
-// 슬라이드 본문 수정 토큰 API. coworks-slide-update 스킬이 호출한다.
+// 슬라이드 장면 수정 토큰 API. coworks-slide-update 스킬이 호출한다.
 import { NextResponse } from "next/server";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { authenticateRequest, authorizeProjectAccess } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
-const CONTENT_MAX = 100_000;
+const DOCUMENT_MAX = 5_000_000; // 직렬화 문자열 길이 상한(바이트 근사)
 
 /**
  * PATCH /api/slides/:slideId
  * Header: Authorization: Bearer <HANSPEC_COWORKS_ACCESSTOKEN>
- * Body: { content: string }
+ * Body: { document: object }  // Excalidraw 장면 { elements, appState, files }
  *
- * 슬라이드(버전)의 본문을 in-place로 수정한다.
- * 응답: { ok: true, slide: { id, version, content } }
+ * 슬라이드(버전)의 캔버스 장면을 in-place로 수정한다.
+ * 응답: { ok: true, slide: { id, version, document } }
  */
 export async function PATCH(
   request: Request,
@@ -30,19 +31,19 @@ export async function PATCH(
     return NextResponse.json({ ok: false, error: "올바르지 않은 슬라이드 id입니다." }, { status: 400 });
   }
 
-  let body: { content?: unknown };
+  let body: { document?: unknown };
   try {
-    body = (await request.json()) as { content?: unknown };
+    body = (await request.json()) as { document?: unknown };
   } catch {
     return NextResponse.json({ ok: false, error: "요청 본문(JSON)을 해석할 수 없습니다." }, { status: 400 });
   }
 
-  if (typeof body.content !== "string") {
-    return NextResponse.json({ ok: false, error: "content는 문자열이어야 합니다." }, { status: 400 });
+  if (body.document === null || typeof body.document !== "object") {
+    return NextResponse.json({ ok: false, error: "document는 객체여야 합니다." }, { status: 400 });
   }
-  if (body.content.length > CONTENT_MAX) {
+  if (JSON.stringify(body.document).length > DOCUMENT_MAX) {
     return NextResponse.json(
-      { ok: false, error: `본문은 ${CONTENT_MAX}자 이하여야 합니다.` },
+      { ok: false, error: "장면이 너무 큽니다. 이미지 크기를 줄여 주세요." },
       { status: 400 },
     );
   }
@@ -62,8 +63,8 @@ export async function PATCH(
 
   const updated = await prisma.slide.update({
     where: { id: slideId },
-    data: { content: body.content },
-    select: { id: true, version: true, content: true },
+    data: { document: body.document as Prisma.InputJsonValue },
+    select: { id: true, version: true, document: true },
   });
 
   return NextResponse.json({ ok: true, slide: updated });
