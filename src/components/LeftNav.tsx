@@ -22,6 +22,7 @@ const HIDDEN_PREFIXES = ["/admin", "/signin", "/signup", "/me"];
 // 참조: docs/components/02-navigation-left.md (v1.1)
 const PROJECT_TASK_ITEMS = [
   { segment: "/table-view", label: "TableView" },
+  { segment: "/board", label: "Board" },
   { segment: "/slides", label: "슬라이드 기획서" },
   { segment: "/completed", label: "완료된 작업" },
   { segment: "/environment", label: "환경변수 관리" },
